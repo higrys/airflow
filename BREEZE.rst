@@ -229,8 +229,25 @@ default settings.
 
 The defaults when you run the Breeze environment are Python 3.6, Sqlite, and Docker.
 
-Cleaning Up the Environment
----------------------------
+Launching Breeze Integrations
+-----------------------------
+
+When Breeze starts, it can start additional integrations. Those are additional docker containers
+that are started in the same docker-compose command. Those are required by some of the tests
+as described in `TESTING.rst <TESTING.rst#airflow-integration-tests>`_.
+
+By default Breeze starts only airflow-testing container without any integration enabled.
+You can start the additional integrations by passing ``--integration`` flag when starting Breeze
+You can specify several ``--integration`` flags to start more than one integration at a time.
+Also you can specify ``--integration all`` to start all integrations.
+
+Once integration is started, it will continue to run until the environment is stopped with
+``breeze --stop-environment`` flag.
+
+Note that running integrations uses significant resources - CPU and memory - by your docker engine.
+
+Stopping the Environment
+------------------------
 
 You may need to clean up your Docker environment occasionally. The images are quite big
 (1.5GB for both images needed for static code analysis and CI tests) and, if you often rebuild/update
@@ -354,7 +371,7 @@ if you do not confirm). After rebuilding is done, Breeze drops you to shell. You
 ``--build-only`` flag to only rebuild images and not to go into shell.
 
 Changing apt Dependencies in the Dockerfile
-....................................................
+............................................
 
 During development, changing dependencies in ``apt-get`` closer to the top of the ``Dockerfile``
 invalidates cache for most of the image. It takes long time for Breeze to rebuild the image.
@@ -582,13 +599,15 @@ This is the current syntax for  `./breeze <./breeze>`_:
 
 
 
-  Usage: breeze [FLAGS] \
-    [-k]|[-S <STATIC_CHECK>]|[-F <STATIC_CHECK>]|[-O]|[-e]|[-a]|[-b]|[-t <TARGET>]|[-x <COMMAND>]|[-d <COMMAND>] \
-    -- <EXTRA_ARGS>
+  *********************************************************************************************************
+
+  Usage: breeze [FLAGS] -- <EXTRA_ARGS>
 
   The swiss-knife-army tool for Airflow testings. It allows to perform various test tasks:
 
     * Enter interactive environment when no command flags are specified (default behaviour)
+    * Start integrations if specified as extra flags
+    * Start Kind Kubernetes cluster for Kubernetes tests if specified
     * Stop the interactive environment with -k, --stop-environment command
     * Run static checks - either for currently staged change or for all files with
       -S, --static-check or -F, --static-check-all-files command
@@ -600,18 +619,35 @@ This is the current syntax for  `./breeze <./breeze>`_:
     * Execute arbitrary command in the test environment with -x, --execute-command command
     * Execute arbitrary docker-compose command with -d, --docker-compose command
 
-  ** Commands
+  *********************************************************************************************************
+  **
+  ** Command to run
+  **
+  *********************************************************************************************************
 
     By default the script enters IT environment and drops you to bash shell,
-    but you can also choose one of the commands to run specific actions instead:
+    but you can choose one of the commands to run specific actions instead:
+
+  -O, --build-docs
+         Build documentation.
+
+  -b, --build-only
+          Only build docker images but do not enter the airflow-testing docker container.
+
+  -e, --initialize-local-virtualenv
+          Initializes locally created virtualenv installing all dependencies of Airflow.
+          This local virtualenv can be used to aid autocompletion and IDE support as
+          well as run unit tests directly from the IDE. You need to have virtualenv
+          activated before running this command.
+
+  -a, --setup-autocomplete
+          Sets up autocomplete for breeze commands. Once you do it you need to re-enter the bash
+          shell and when typing breeze command <TAB> will provide autocomplete for parameters and values.
 
   -k, --stop-environment
           Bring down running docker compose environment. When you start the environment, the docker
           containers will continue running so that startup time is shorter. But they take quite a lot of
           memory and CPU. This command stops all running containers from the environment.
-
-  -O, --build-docs
-         Build documentation.
 
   -S, --static-check <STATIC_CHECK>
           Run selected static checks for currently changed files. You should specify static check that
@@ -641,19 +677,6 @@ This is the current syntax for  `./breeze <./breeze>`_:
 
           './breeze --static-check-all-files mypy -- --help'
 
-  -e, --initialize-local-virtualenv
-          Initializes locally created virtualenv installing all dependencies of Airflow.
-          This local virtualenv can be used to aid autocompletion and IDE support as
-          well as run unit tests directly from the IDE. You need to have virtualenv
-          activated before running this command.
-
-  -a, --setup-autocomplete
-          Sets up autocomplete for breeze commands. Once you do it you need to re-enter the bash
-          shell and when typing breeze command <TAB> will provide autocomplete for parameters and values.
-
-  -b, --build-only
-          Only build docker images but do not enter the airflow-testing docker container.
-
   -t, --test-target <TARGET>
           Run the specified unit test target. There might be multiple
           targets specified separated with comas. The <EXTRA_ARGS> passed after -- are treated
@@ -661,26 +684,20 @@ This is the current syntax for  `./breeze <./breeze>`_:
 
           './breeze --test-target tests/test_core.py -- --logging-level=DEBUG'
 
-  -x, --execute-command <COMMAND>
-          Run chosen command instead of entering the environment. The command is run using
-          'bash -c "<command with args>" if you need to pass arguments to your command, you need
-          to pass them together with command surrounded with " or '. Alternatively you can pass arguments as
-           <EXTRA_ARGS> passed after --. For example:
-
-          './breeze --execute-command "ls -la"' or
-          './breeze --execute-command ls -- --la'
-
-  -d, --docker-compose <COMMAND>
-          Run docker-compose command instead of entering the environment. Use 'help' command
-          to see available commands. The <EXTRA_ARGS> passed after -- are treated
-          as additional options passed to docker-compose. For example
-
-          './breeze --docker-compose pull -- --ignore-pull-failures'
-
-  ** General flags
+  *********************************************************************************************************
+  **
+  ** Print help message
+  **
+  *********************************************************************************************************
 
   -h, --help
           Shows this help message.
+
+  *********************************************************************************************************
+  **
+  ** Choose tested Airflow variant
+  **
+  *********************************************************************************************************
 
   -P, --python <PYTHON_VERSION>
           Python version used for the image. This is always major/minor version.
@@ -689,6 +706,18 @@ This is the current syntax for  `./breeze <./breeze>`_:
   -B, --backend <BACKEND>
           Backend to use for tests - it determines which database is used.
           One of [ sqlite mysql postgres ]. Default: sqlite
+
+  -I, --integration <INTEGRATION>
+          Integration to start during tests - it determines which integrations are started for integration
+          tests. There can be more than one integration started, or all to start all integrations.
+          Selected integrations are not saved for future execution.
+          One of [ cassandra kerberos mongo openldap rabbitmq redis all ]. Default:
+
+  *********************************************************************************************************
+  **
+  ** Manage Kind kubernetes cluster
+  **
+  *********************************************************************************************************
 
   -K, --start-kind-cluster
           Starts kind Kubernetes cluster after entering the environment. The cluster is started using
@@ -715,12 +744,21 @@ This is the current syntax for  `./breeze <./breeze>`_:
           Kubernetes version - only used in case --start-kind-cluster flag is specified.
           One of [ v1.15.3 v1.16.2 ]. Default: v1.15.3
 
+  *********************************************************************************************************
+  **
+  ** Manage mounting local files
+  **
+  *********************************************************************************************************
+
   -s, --skip-mounting-source-volume
           Skips mounting local volume with sources - you get exactly what is in the
           docker image rather than your current local sources of airflow.
 
-  -v, --verbose
-          Show verbose information about executed commands (enabled by default for running test)
+  *********************************************************************************************************
+  **
+  ** Assume answers to questions
+  **
+  *********************************************************************************************************
 
   -y, --assume-yes
           Assume 'yes' answer to all questions.
@@ -728,19 +766,32 @@ This is the current syntax for  `./breeze <./breeze>`_:
   -n, --assume-no
           Assume 'no' answer to all questions.
 
+  *********************************************************************************************************
+  **
+  ** Increase verbosity of the script
+  **
+  *********************************************************************************************************
+
+  -v, --verbose
+          Show verbose information about executed commands (enabled by default for running test)
+
+  *********************************************************************************************************
+  **
+  ** Enable/Disable extra information printed at output
+  **
+  *********************************************************************************************************
+
   -C, --toggle-suppress-cheatsheet
           Toggles on/off cheatsheet displayed before starting bash shell
 
   -A, --toggle-suppress-asciiart
           Toggles on/off asciiart displayed before starting bash shell
 
-  ** Dockerfile management flags
-
-  -D, --dockerhub-user
-          DockerHub user used to pull, push and build images. Default: apache.
-
-  -H, --dockerhub-repo
-          DockerHub repository used to pull, push, build images. Default: airflow.
+  *********************************************************************************************************
+  **
+  ** Flags for building the docker images
+  **
+  *********************************************************************************************************
 
   -r, --force-build-images
           Forces building of the local docker images. The images are rebuilt
@@ -753,21 +804,64 @@ This is the current syntax for  `./breeze <./breeze>`_:
           environment, later the locally build images are used as cache.
 
   -R, --force-clean-build
-          Force build images without cache at all. This will remove the pulled or build images
+          Force build images with cache disabled. This will remove the pulled or build images
           and start building images from scratch. This might take a long time.
 
   -L, --use-local-cache
           Uses local cache to build images. No pulled images will be used, but results of local builds in
           the Docker cache are used instead.
 
+  -c, --cleanup-images
+          Cleanup your local docker cache of the airflow docker images. This will not reclaim space in
+          docker cache. You need to 'docker system prune' (optionally with --all) to reclaim that space.
+
+  *********************************************************************************************************
+  **
+  ** Flags for pushing the docker images
+  **
+  *********************************************************************************************************
+
   -u, --push-images
           After building - uploads the images to DockerHub
           It is useful in case you use your own DockerHub user to store images and you want
           to build them locally. Note that you need to use 'docker login' before you upload images.
 
-  -c, --cleanup-images
-          Cleanup your local docker cache of the airflow docker images. This will not reclaim space in
-          docker cache. You need to 'docker system prune' (optionally with --all) to reclaim that space.
+  *********************************************************************************************************
+  **
+  ** User and repo used to login to github registry
+  **
+  *********************************************************************************************************
+
+  -D, --dockerhub-user
+          DockerHub user used to pull, push and build images. Default: apache.
+
+  -H, --dockerhub-repo
+          DockerHub repository used to pull, push, build images. Default: airflow.
+
+  *********************************************************************************************************
+  **
+  ** Additional low-level commands that you can use to interact with the Breeze environment
+  **
+  *********************************************************************************************************
+
+  -d, --docker-compose <COMMAND>
+          Run docker-compose command instead of entering the environment. Use 'help' command
+          to see available commands. The <EXTRA_ARGS> passed after -- are treated
+          as additional options passed to docker-compose. For example
+
+          './breeze --docker-compose pull -- --ignore-pull-failures'
+
+  -x, --execute-command <COMMAND>
+          Run chosen command instead of entering the environment. The command is run using
+          'bash -c "<command with args>" if you need to pass arguments to your command, you need
+          to pass them together with command surrounded with " or '. Alternatively you can pass arguments as
+           <EXTRA_ARGS> passed after --. For example:
+
+          './breeze --execute-command "ls -la"' or
+          './breeze --execute-command ls -- --la'
+
+  *********************************************************************************************************
+
 
 
  .. END BREEZE HELP MARKER

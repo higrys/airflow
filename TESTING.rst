@@ -152,46 +152,192 @@ You can also specify individual tests or a group of tests:
 
     ./breeze --test-target tests/test_core.py::TestCore
 
-Running Full test suite via scripts from the host
--------------------------------------------------
-
-To run all tests with default settings (Python 3.6, Sqlite backend, "docker" environment), enter:
-
-.. code-block::
-
-  ./scripts/ci/local_ci_run_airflow_testing.sh
-
-
-To select Python 3.6 version, Postgres backend, and a ``docker`` environment, specify:
-
-.. code-block::
-
-  PYTHON_VERSION=3.6 BACKEND=postgres ENV=docker ./scripts/ci/local_ci_run_airflow_testing.sh
-
-To run Kubernetes tests, enter:
-
-.. code-block::
-
-  KUBERNETES_VERSION==v1.13.5 KUBERNETES_MODE=persistent_mode BACKEND=postgres ENV=kubernetes \
-    ./scripts/ci/local_ci_run_airflow_testing.sh
-
-* PYTHON_VERSION is one of 3.6/3.7
-* BACKEND is one of postgres/sqlite/mysql
-* ENV is one of docker/kubernetes/bare
-* KUBERNETES_VERSION is required for Kubernetes tests. Currently, it is KUBERNETES_VERSION=v1.13.0.
-* KUBERNETES_MODE is a mode of kubernetes: either persistent_mode or git_mode.
-
 
 Airflow Integration Tests
 =========================
 
-Running Airflow integration tests cannot be run in local virtualenv. They can only run in Breeze
-environment locally and in Travis CI.
+Some of the tests in Airflow are Integration tests. Those tests require not only airflow-testing docker
+image but also extra images with integrations (such as redis/mongodb etc.).
 
-When you are in Breeze environment you can execute both Unit and Integration tests.
+
+Enabling integrations
+---------------------
+
+Running Airflow integration tests cannot be run in local virtualenv. They can only run in Breeze
+environment with enabled integrations and in Travis CI.
+
+When you are in Breeze environment, by default all integrations are disabled - this way only true unit tests
+can be executed in Breeze. You can enable the integration by passing ``--integration <INTEGRATION>``
+switch when starting Breeze. You can specify multiple integrations by repeating the ``--integration`` switch
+or by using ``--integration all`` switch which enables all integrations.
+
+Note, that every integration requires separate container with the corresponding integration image,
+so they take precious resources on your PC - mainly memory. The integrations started are not stopped
+until you stop the Breeze environment with ``--stop-environment`` switch.
+
+The following integrations are available:
+
+.. list-table:: Airflow Test Integrations
+   :widths: 15 80
+   :header-rows: 1
+
+   * - Integration
+     - Description
+   * - cassandra
+     - Integration required for Cassandra hooks
+   * - kerberos
+     - Integration that provides Kerberos authentication
+   * - mongo
+     - Integration required for MongoDB hooks
+   * - openldap
+     - Integration required for OpenLDAP hooks
+   * - rabbitmq
+     - Integration required for RabbitMQ queue hooks
+   * - redis
+     - Integration required for Redis hooks
+
+Below command starts kerberos integration only:
+
+.. code-block:: bash
+
+    ./breeze --integration kerberos
+
+Below command starts kerberos and cassandra integrations:
+
+.. code-block:: bash
+
+    ./breeze --integration kerberos --integration cassandra
+
+Below command starts all integrations:
+
+.. code-block:: bash
+
+    ./breeze --integration all
+
+In the CI environment integrations can be enabled by specifying ``ENABLED_INTEGRATIONS`` variable
+storing space-separated list of integrations to start. Thanks to that we can run integration and
+integration-less tests separately in different jobs which is desired from the memory usage point of view.
+
+
+Running integration tests
+-------------------------
+
+All tests that are using an integration are marked with custom pytest marker ``pytest.mark.integration``.
+The marker has single parameter - name of the integration.
+
+Example redis-integration test:
+
+.. code-block:: python
+
+    @pytest.mark.integration("redis")
+    def test_real_ping(self):
+        hook = RedisHook(redis_conn_id='redis_default')
+        redis = hook.get_conn()
+
+        self.assertTrue(redis.ping(), 'Connection to Redis with PING works.')
+
+The markers can be specified at the test level or at the class level (then all tests in this class
+require the integration). You can add multiple markers with different integrations for tests that
+require more than one integration.
+
+The behaviour of such marked tests is that it is skipped in case required integration is not enabled.
+The skip message will clearly say what's needed in order to use that tests.
+
+You can run all tests that are using certain integration with the custom pytest flag ``--integrations``,
+where you can pass integrations as comma separated values. You can also specify ``all`` in order to start
+tests for all integrations. Note that if an integration is not enabled in Breeze or CI.
+
+Example that runs only ``mongo`` integration tests:
+
+.. code-block:: bash
+
+    pytest --integrations mongo
+
+Example that runs integration tests fot ``mogo`` and ``rabbitmq``:
+
+.. code-block:: bash
+
+    pytest --integrations mongo,rabbitmq
+
+Example that runs all integration tests:
+
+.. code-block:: bash
+
+    pytest --integrations all
+
+Note that collecting all tests takes quite some time, so if you know where your tests are located you can
+speed up test collection significantly by providing the folder where the tests are located.
+
+Here is an example of collection limited only to apache providers directory:
+
+.. code-block:: bash
+
+    pytest --integrations cassandra tests/providers/apache/
+
+Running backend-specific tests
+------------------------------
+
+Some tests that are using a specific backend are marked with custom pytest marker ``pytest.mark.backend``.
+The marker has single parameter - name of the backend. It correspond with the ``--backend`` switch of
+the Breeze environment (one of ``mysql``, ``sqlite``, ``postgres``). Those tests will only run when
+the Breeze environment is running with the right backend. You can specify more than one backen
+in the marker in case the test should run for all those backends specified.
+
+Example postgres-only test:
+
+.. code-block:: python
+
+    @pytest.mark.backend("postgres")
+    def test_copy_expert(self):
+        ...
+
+
+Example postgres,mysql test:
+
+.. code-block:: python
+
+    @pytest.mark.backend("postgres", "mysql")
+    def test_celery_executor(self):
+        ...
+
+
+You can use custom ``--backend`` switch in pytest to only run tests specific for that backend.
+Here is an example of only running postgres-specific backend tests:
+
+.. code-block:: bash
+
+    pytest --backend postgres
+
+
+Running runtime-specific tests
+------------------------------
+
+Some tests that are using a specific runtime are marked with custom pytest marker ``pytest.mark.runtime``.
+The marker has single parameter - name of the runtime. For the moment the only supported runtime is
+kubernetes. This runtime is set when you run Breeze with ``--start-kind-cluster`` option).
+Those tests will only run when the Breeze environment is running with the right runtime.
+
+@pytest.mark.runtime("kubernetes")
+class TestKubernetesExecutor(unittest.TestCase):
+
+
+You can use custom ``--runtime`` switch in pytest to only run tests specific for that backend.
+
+Here is an example of only running kubernetes-runtime backend tests:
+
+.. code-block:: bash
+
+    pytest --runtime kubernetes
+
+Note! For convenience and faster search all runtime tests are stored in ``tests.runtime`` package. You
+can speed up collection of tests in this case by:
+
+.. code-block:: bash
+
+    pytest --runtime kubernetes tests/runtime
 
 Travis CI Testing Framework
----------------------------
+===========================
 
 Airflow test suite is based on Travis CI framework as running all of the tests
 locally requires significant setup. You can set up Travis CI in your fork of
@@ -208,7 +354,7 @@ set up on GitHub as separate components:
 -   **Travis CI GitHub Services** (legacy version)
 
 Travis CI GitHub App (new version)
-..................................
+----------------------------------
 
 1.  Once `installed <https://github.com/apps/travis-ci/installations/new/permissions?target_id=47426163>`__,
     configure the Travis CI GitHub App at
@@ -220,7 +366,7 @@ Travis CI GitHub App (new version)
 3.   Access Travis CI for your fork at `<https://travis-ci.com/USERNAME/airflow>`__.
 
 Travis CI GitHub Services (legacy version)
-..........................................
+------------------------------------------
 
 **NOTE:** The apache/airflow project is still using the legacy version.
 
@@ -238,7 +384,7 @@ Travis CI GitHub Services version uses an Authorized OAuth App.
     `<https://travis-ci.org/ORGANIZATION/airflow>`_.
 
 Creating New Projects in Travis CI
-..................................
+----------------------------------
 
 If you need to create a new project in Travis CI, use travis-ci.com for both
 private repos and open source.
@@ -306,7 +452,7 @@ DAG testing
 ===========
 
 To ease and speed up process of developing DAGs you can use
-:class:`~airflow.executors.debug_executor.DebugExecutor` - a single process executor
+py:class:`~airflow.executors.debug_executor.DebugExecutor` - a single process executor
 for debugging purposes. Using this executor you can run and debug DAGs from your IDE.
 
 **IDE setup steps:**
@@ -340,13 +486,13 @@ They require BAT CLI to be installed if you want to run them in your
 host or via docker image.
 
 BATS CLI installation
-.....................
+---------------------
 
 You can find installation guide as well as information on how to write
 the bash tests in [BATS installation](https://github.com/bats-core/bats-core#installation)
 
 Running BATS tests in the host
-..............................
+------------------------------
 
 Running all tests:
 
@@ -361,7 +507,7 @@ bats tests/bats/your_test_file.bats
 ```
 
 Running BATS tests via docker
-..............................
+-----------------------------
 
 Running all tests:
 
@@ -376,7 +522,7 @@ docker run -it --workdir /airflow -v $(pwd):/airflow  bats/bats:latest /airflow/
 ```
 
 BATS usage
-..........
+----------
 
 You can read more about using BATS CLI and writing tests in:
 [BATS usage](https://github.com/bats-core/bats-core#usage)
