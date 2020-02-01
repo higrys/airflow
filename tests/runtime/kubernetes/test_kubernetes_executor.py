@@ -108,7 +108,7 @@ class TestKubernetesExecutor(unittest.TestCase):
     def dump_kind_logs(self):
         tempdir_path = mkdtemp()
         try:
-            run_command(["kind", "export", "logs", tempdir_path])
+            run_command("kind --name {} export logs {}".format(os.environ.get("CLUSTER_NAME"), tempdir_path))
             for dirpath, _, filenames in os.walk(tempdir_path):
                 for file_name in filenames:
                     file_path = os.path.join(dirpath, file_name)
