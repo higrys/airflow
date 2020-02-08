@@ -1023,3 +1023,9 @@ function check_for_allowed_params {
     fi
     save_to_file "${_VARIABLE_NAME}"
 }
+
+
+function prepeare_backport_packages() {
+    ALL_PROVIDER_PACKAGES_
+
+}
