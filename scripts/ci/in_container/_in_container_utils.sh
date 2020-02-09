@@ -257,6 +257,16 @@ function dump_container_logs() {
     done
 }
 
+function dump_airflow_logs() {
+    echo "###########################################################################################"
+    echo "                   Dumping logs from all the airflow tasks"
+    echo "###########################################################################################"
+    pushd /root/airflow/ || exit 1
+    tar -czf "${1}" logs
+    popd || exit 1
+    echo "###########################################################################################"
+}
+
 
 function send_docker_logs_to_file_io() {
     echo "##############################################################################"
@@ -266,6 +276,21 @@ function send_docker_logs_to_file_io() {
     echo "##############################################################################"
     DUMP_FILE=/tmp/$(date "+%Y-%m-%d")_docker_${TRAVIS_BUILD_ID:="default"}_${TRAVIS_JOB_ID:="default"}.log.gz
     dump_container_logs 2>&1 | gzip >"${DUMP_FILE}"
+    echo
+    echo "   Logs saved to ${DUMP_FILE}"
+    echo
+    echo "##############################################################################"
+    curl -F "file=@${DUMP_FILE}" https://file.io
+}
+
+function send_airflow_logs_to_file_io() {
+    echo "##############################################################################"
+    echo
+    echo "   DUMPING LOG FILES FROM AIRFLOW AND SENDING THEM TO file.io"
+    echo
+    echo "##############################################################################"
+    DUMP_FILE=/tmp/$(date "+%Y-%m-%d")_airflow_${TRAVIS_BUILD_ID:="default"}_${TRAVIS_JOB_ID:="default"}.log.tar.gz
+    dump_airflow_logs "${DUMP_FILE}"
     echo
     echo "   Logs saved to ${DUMP_FILE}"
     echo
