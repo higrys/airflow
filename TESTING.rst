@@ -31,8 +31,7 @@ Airflow Test Infrastructure
 
 * **System tests** are automatic tests that use external systems like
   Google Cloud Platform. These tests are intended for an end-to-end DAG execution.
-  Note that automated execution of these tests is still
-  `work in progress <https://cwiki.apache.org/confluence/display/AIRFLOW/AIP-4+Support+for+System+Tests+for+external+systems#app-switcher>`_.
+  The tests can be executed on both.
 
 This document is about running python tests, before the tests are run we also use
 `static code checks <STATIC_CODE_CHECKS.rst>`__ which allow to catch typical errors in code
@@ -474,21 +473,54 @@ More information:
 Airflow System Tests
 ====================
 
-The System tests for Airflow are not yet fully implemented. They are Work In Progress of the
-`AIP-4 Support for System Tests for external systems <https://cwiki.apache.org/confluence/display/AIRFLOW/AIP-4+Support+for+System+Tests+for+external+systems>`__.
 These tests need to communicate with external services/systems that are available
 if you have appropriate credentials configured for your tests.
-The tests derive from ``tests.system_test_class.SystemTests`` class.
+The tests derive from ``tests.system_test_class.SystemTests`` class. They should also
+be marked with ``@pytest.marker.system(SYSTEM)`` where system designates the system
+to be tested (for example ``google.cloud``). Those tests are skipped by default.
+You can execute the tests providing ``--systems SYSTEMS`` flag to pytest.
 
-The system tests execute a specified
-example DAG file that runs the DAG end-to-end.
+The system tests execute a specified example DAG file that runs the DAG end-to-end.
+
+Most of the system tests have also addtional requirements for example they need to have
+credentials to connect to external systems. This is don with pytest marker
+``@pytest.markers.credential_file(file)`` where "file" is a file containing
+credentials. The credential file should be relative path from
+``/files/airflow-breeze-config/keys`` directory. In Breeze environment it is mapped
+from the ``files`` directory in airflow's sources.
+
+Some of the system tests are long lasting ones (they require more than 20-30 minutes
+to complete}. They are marked with ```@pytest.markers.long_lasting`` marker.
+They are skipped by default unless you specify ``--long-lasting`` flag to pytest.
 
 An example of such a system test is
 ``airflow.tests.providers.google.operators.test_natural_language_system.CloudNaturalLanguageExampleDagsTest``.
 
-For now you can execute the system tests and follow messages printed to get them running. Soon more information on
-running the tests will be available.
 
+Running system tests
+--------------------
+
+As mentioned above - the system tests are only executed when you specify ``--systems SYSTEMS``
+flag where SYSTEMS is coma-separated list of systems to run the system tests for.
+
+
+Running tests for older Airflow versionsIRFLOW
+----------------------------------------
+
+The tests can be executed against the master version of Airflow but they also work
+with older versions of airflow. This is especially useful to tests back-ported operators
+from Airflow 2.0 to 1.10.* versions.
+
+In order to run the tests for Airflow 1.10.* series you need to run Breeze with the
+``--install-airflow-version==<VERSION>`` to install different version of Airflow.
+If "current" is specified (default) then current version of airflow is used,
+otherwise released version of Airflow is installed.
+The commands make sure that source version of master airflow is removed and released version of
+Airflow from Pypi is installed. Note that tests sources are not removed and they can be used
+to run tests (unit tests and system tests) against the freshly installed version.
+
+This works best for system tests. Some of the unit and integration tests might also work in the same
+fashion.
 
 Local and Remote Debugging in IDE
 =================================
@@ -545,7 +577,6 @@ It will run a backfill job:
 Additionally ``DebugExecutor`` can be used in a fail-fast mode that will make
 all other running or scheduled tasks fail immediately. To enable this option set
 ``AIRFLOW__DEBUG__FAIL_FAST=True`` or adjust ``fail_fast`` option in your ``airflow.cfg``.
-
 
 BASH unit testing (BATS)
 ========================

@@ -56,6 +56,14 @@ else
     DOCKER_COMPOSE_LOCAL=()
 fi
 
+if [[ ${FORWARD_CREDENTIALS} == "true" ]]; then
+    DOCKER_COMPOSE_LOCAL+=("-f" "${MY_DIR}/docker-compose/forward-credentials.yml")
+fi
+
+if [[ ${INSTALL_AIRFLOW_VERSION} != "current" ]]; then
+    DOCKER_COMPOSE_LOCAL+=("-f" "${MY_DIR}/docker-compose/remove-sources.yml")
+fi
+
 echo
 echo "Using docker image: ${AIRFLOW_CI_IMAGE} for docker compose runs"
 echo
