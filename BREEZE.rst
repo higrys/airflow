@@ -208,7 +208,7 @@ checked-out Airflow repository to your PATH to run Breeze without the ``./`` and
 
 
 When you enter the Breeze environment, automatically an environment file is sourced from
-``files/airflow-breeze-config/variables.env``. The ``file`` folder from your local sources is
+``files/airflow-breeze-config/variables.env``. The ``files`` folder from your local sources is
 automatically mounted to the container under ``/files`` path and you can put there any files you want
 to make available fot the Breeze container.
 
