@@ -209,13 +209,12 @@ if [[ -n ${BACKEND:=} ]]; then
     check_db_connection 5
 
     set -e
-    if [[ ${RES} == 0 ]]; then
+    if [[ ${EXIT_CODE} == 0 ]]; then
         echo "==============================================================================================="
         echo "             Backend database is sane"
         echo "==============================================================================================="
         echo
     fi
-    export EXIT_CODE=${RES}
 else
     echo "==============================================================================================="
     echo "             Skip checking backend - BACKEND not set"
