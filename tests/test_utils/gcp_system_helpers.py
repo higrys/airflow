@@ -19,10 +19,8 @@ import os
 from typing import Optional, Sequence
 
 from airflow.providers.google.cloud.utils.credentials_provider import provide_gcp_conn_and_credentials
+from tests.test_utils import AIRFLOW_MAIN_FOLDER
 
-AIRFLOW_MAIN_FOLDER = os.path.realpath(
-    os.path.join(os.path.dirname(os.path.realpath(__file__)), os.pardir, os.pardir)
-)
 CLOUD_DAG_FOLDER = os.path.join(
     AIRFLOW_MAIN_FOLDER, "airflow", "providers", "google", "cloud", "example_dags"
 )

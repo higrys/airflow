@@ -27,10 +27,8 @@ from airflow import AirflowException, models
 from airflow.configuration import AIRFLOW_HOME, AirflowConfigParser, get_airflow_config
 from airflow.utils.file import mkdirs
 from airflow.utils.log.logging_mixin import LoggingMixin
+from tests.test_utils import AIRFLOW_MAIN_FOLDER
 
-AIRFLOW_MAIN_FOLDER = os.path.realpath(
-    os.path.join(os.path.dirname(os.path.realpath(__file__)), os.pardir, os.pardir)
-)
 DEFAULT_DAG_FOLDER = os.path.join(AIRFLOW_MAIN_FOLDER, "airflow", "example_dags")
 
 

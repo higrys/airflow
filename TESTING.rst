@@ -126,9 +126,6 @@ for debugging purposes:
 
     pytest --log-level=DEBUG tests/test_core.py::TestCore
 
-**Note:** We do not provide a clear distinction between tests
-(Unit/Integration/System tests), but we are working on it.
-
 
 Running Tests for a Specified Target using Breeze from the host
 ---------------------------------------------------------------
@@ -476,27 +473,14 @@ Airflow System Tests
 
 These tests need to communicate with external services/systems that are available
 if you have appropriate credentials configured for your tests.
-The tests derive from ``tests.system_test_class.SystemTests`` class. They should also
+The tests derive from ``tests.test_utils.system_test_class.SystemTests`` class. They should also
 be marked with ``@pytest.marker.system(SYSTEM)`` where system designates the system
 to be tested (for example ``google.cloud``). Those tests are skipped by default.
 You can execute the tests providing ``--systems SYSTEMS`` flag to pytest.
 
 The system tests execute a specified example DAG file that runs the DAG end-to-end.
 
-Most of the system tests have also addtional requirements for example they need to have
-credentials to connect to external systems. This is don with pytest marker
-``@pytest.markers.credential_file(file)`` where "file" is a file containing
-credentials. The credential file should be relative path from
-``/files/airflow-breeze-config/keys`` directory. In Breeze environment it is mapped
-from the ``files`` directory in airflow's sources.
-
-Some of the system tests are long lasting ones (they require more than 20-30 minutes
-to complete}. They are marked with ```@pytest.markers.long_lasting`` marker.
-They are skipped by default unless you specify ``--long-lasting`` flag to pytest.
-
-An example of such a system test is
-``airflow.tests.providers.google.operators.test_natural_language_system.CloudNaturalLanguageExampleDagsTest``.
-
+See more details about adding new system tests below.
 
 Running system tests
 --------------------
@@ -504,6 +488,67 @@ Running system tests
 As mentioned above - the system tests are only executed when you specify ``--systems SYSTEMS``
 flag where SYSTEMS is coma-separated list of systems to run the system tests for.
 
+Setting environment variables for system tests
+----------------------------------------------
+
+It is often the case that you need to set some variables in order to run system tests. In case you need to
+add some intialisation of environment variables to Breeze you can always add a
+``variables.env`` file in ``files/airflow-breeze-config/variables.env`` file and it will be automatically
+sourced during entering of the Breeze environment.
+
+
+Forwarding authentication from host for system tests
+----------------------------------------------------
+
+You can also forward authentication from the host to your Breeze container. You can specify
+``--forward-credentials`` flag when starting Breeze and then it will also forward most commonly used
+credentials stored in your home directory. Use this with care as it will make your personal credentials
+visible to anything that you have installed inside the docker container.
+
+Currently forwarded credentials are:
+  * all credentials stored in ``${HOME}/.config`` (for example GCP credentials)
+  * credentials stored in ``${HOME}/.gsutil`` for ``gsutil`` tool from GCS
+  * credentials stored in ``${HOME}/.boto`` and ``${HOME}/.s3`` (for AWS authentication)
+  * credentials stored in ``${HOME}/.docker`` for docker
+  * credentials stored in ``${HOME}/.kube`` for kubectl
+  * credentials stored in ``${HOME}/.ssh`` for SSH
+
+
+How to add new system test
+--------------------------
+
+We are working on automation of system tests execution (AIP-4) but for now system tests are skipped when
+tests are run in our CI system. But in order to enable test automation we encourage you to add system
+tests whenever an operator/hook/sensor is added/modified in a given system.
+
+* You should add your own system tests by deriving your tests from the
+  ``tests.test_utils.system_tests_class.SystemTest` class and marking your test with
+  ``@pytest.mark.system(SYSTEM_NAME)`` marker. The system name should follow the path defined in
+  the ``providers`` package (for example the system tests from ``tests.providers.google.cloud``
+  package should be marked with ``@pytest.mark.system("google.cloud")``.
+* Usually system tests have requirements of some credential files to be available in order to
+  authenticate to the external systems. Those credentials are expected to be found in
+  ``files/airflow-breeze-config/keys`` directory and you should mark your tests with
+  ``@pytest.mark.credential_file(<FILE>)`` so that they are skipped if such credential file is not there.
+  The tests should read the right credentials and authenticate on their own. The credentials are read
+  in Breeze from ``/files`` directory - the local "files" folder is mounted to "/files" folder in Breeze.
+* Some of the system tests are long lasting ones (they require more than 20-30 minutes
+  to complete}. They are marked with ```@pytest.markers.long_lasting`` marker.
+  They are skipped by default unless you specify ``--long-lasting`` flag to pytest.
+* The system test itself (python class) does not have any logic. What the test does it runs
+  the DAG specified by its id and this dag should contains the actual DAG logic
+  to execute. The dag should be defined in ``providers/<SYSTEM_NAME>/example_dags``. Those example dags
+  are also used to take some snippets of code out of them when documentation is generated, so having those
+  DAGs runnable is a great way to make sure the documenation is describing a working example. Inside
+  your test class test method simply run ``self.run_dag(<DAG_ID>,<DAG_FOLDER>)`` to run the DAG. Then
+  system class will take care about running the dag. Note that the DAG_FOLDER should be
+  a subdirectory of the ``tests.test_utils.AIRFLOW_MAIN_FOLDER`` + ``providers/<SYSTEM_NAME>/example_dags``
+
+An example of system test is available in:
+
+``airflow.tests.providers.google.operators.test_natunal_language_system.CloudNaturalLanguageExampleDagsTest``.
+
+It runs the DAG defined in ``airflow.providers.google.cloud.example_dags.example_natural_language.py``.
 
 Running tests for older Airflow versions
 ----------------------------------------
@@ -517,11 +562,12 @@ In order to run the tests for Airflow 1.10.* series you need to run Breeze with 
 If "current" is specified (default) then current version of airflow is used,
 otherwise released version of Airflow is installed.
 The commands make sure that source version of master airflow is removed and released version of
-Airflow from Pypi is installed. Note that tests sources are not removed and they can be used
+Airflow from ``Pypi`` is installed. Note that tests sources are not removed and they can be used
 to run tests (unit tests and system tests) against the freshly installed version.
 
-This works best for system tests. Some of the unit and integration tests might also work in the same
-fashion.
+This works best for system tests - all the system tests should work for at least latest released 1.10.x
+Airflow version. Some of the unit and integration tests might also work in the same
+fashion but it's not necessary or expected.
 
 Local and Remote Debugging in IDE
 =================================
