@@ -285,21 +285,22 @@ _BREEZE_DEFAULT_KUBERNETES_VERSION="v1.15.3"
 _BREEZE_DEFAULT_INSTALL_AIRFLOW_VERSION="current"
 
 usage() {
-      WIDTH=$((SEPARATOR_WIDTH>100 ? 100: SEPARATOR_WIDTH))
+      LIST_PREFIX="            "
+      WIDTH=$((SEPARATOR_WIDTH>80 ? 80: SEPARATOR_WIDTH))
       ALLOWED_PYTHON_VERSIONS=$(echo "${_BREEZE_ALLOWED_PYTHON_VERSIONS=""}" | tr '\n' ' ' | \
-          fold -w "${WIDTH}" -s)
+          fold -w "${WIDTH}" -s | sed "s/^/${LIST_PREFIX}/")
       ALLOWED_BACKENDS=$(echo "${_BREEZE_ALLOWED_BACKENDS=""}" | tr '\n' ' ' | \
-          fold -w "${WIDTH}" -s)
+          fold -w "${WIDTH}" -s | sed "s/^/${LIST_PREFIX}/")
       ALLOWED_STATIC_CHECKS=$(echo "${_BREEZE_ALLOWED_STATIC_CHECKS=""}" | tr '\n' ' ' | \
-          fold -w "${WIDTH}" -s)
+          fold -w "${WIDTH}" -s | sed "s/^/${LIST_PREFIX}/")
       ALLOWED_INTEGRATIONS=$(echo "${_BREEZE_ALLOWED_INTEGRATIONS=""}" | tr '\n' ' ' | \
-          fold -w "${WIDTH}" -s)
+          fold -w "${WIDTH}" -s | sed "s/^/${LIST_PREFIX}/")
       ALLOWED_KUBERNETES_MODES=$(echo "${_BREEZE_ALLOWED_KUBERNETES_MODES=""}" | tr '\n' ' ' | \
-          fold -w "${WIDTH}" -s)
+          fold -w "${WIDTH}" -s | sed "s/^/${LIST_PREFIX}/")
       ALLOWED_KUBERNETES_VERSIONS=$(echo "${_BREEZE_ALLOWED_KUBERNETES_VERSIONS=""}" | tr '\n' ' ' | \
-          fold -w "${WIDTH}" -s)
+          fold -w "${WIDTH}" -s | sed "s/^/${LIST_PREFIX}/")
       ALLOWED_INSTALL_AIRFLOW_VERSIONS=$(echo "${_BREEZE_ALLOWED_INSTALL_AIRFLOW_VERSIONS=""}" | \
-          tr '\n' ' ' | fold -w "${WIDTH}" -s)
+          tr '\n' ' ' | fold -w "${WIDTH}" -s | sed "s/^/${LIST_PREFIX}/")
       echo """
 
 *********************************************************************************************************
@@ -354,7 +355,7 @@ The swiss-knife-army tool for Airflow testings. It allows to perform various tes
 
 -S, --static-check <STATIC_CHECK>
         Run selected static checks for currently changed files. You should specify static check that
-        you would like to run or 'all' to run all checks. One of
+        you would like to run or 'all' to run all checks. One of:
 
 ${ALLOWED_STATIC_CHECKS}
 
@@ -370,7 +371,7 @@ ${ALLOWED_STATIC_CHECKS}
 
 -F, --static-check-all-files <STATIC_CHECK>
         Run selected static checks for all applicable files. You should specify static check that
-        you would like to run or 'all' to run all checks. One of
+        you would like to run or 'all' to run all checks. One of:
 
 ${ALLOWED_STATIC_CHECKS}
 

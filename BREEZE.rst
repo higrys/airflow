@@ -616,13 +616,13 @@ This is the current syntax for  `./breeze <./breeze>`_:
 
   -S, --static-check <STATIC_CHECK>
           Run selected static checks for currently changed files. You should specify static check that
-          you would like to run or 'all' to run all checks. One of
+          you would like to run or 'all' to run all checks. One of:
 
-  all all-but-pylint bat-tests check-apache-license
-  check-executables-have-shebangs check-hooks-apply check-merge-conflict
-  check-xml debug-statements doctoc detect-private-key end-of-file-fixer flake8
-  forbid-tabs insert-license lint-dockerfile mixed-line-ending mypy pylint
-  pylint-test setup-order shellcheck
+              all all-but-pylint bat-tests check-apache-license
+              check-executables-have-shebangs check-hooks-apply check-merge-conflict
+              check-xml debug-statements doctoc detect-private-key end-of-file-fixer flake8
+              forbid-tabs insert-license lint-dockerfile mixed-line-ending mypy pylint
+              pylint-test setup-order shellcheck
 
           You can pass extra arguments including options to to the pre-commit framework as
           <EXTRA_ARGS> passed after --. For example:
@@ -636,13 +636,13 @@ This is the current syntax for  `./breeze <./breeze>`_:
 
   -F, --static-check-all-files <STATIC_CHECK>
           Run selected static checks for all applicable files. You should specify static check that
-          you would like to run or 'all' to run all checks. One of
+          you would like to run or 'all' to run all checks. One of:
 
-  all all-but-pylint bat-tests check-apache-license
-  check-executables-have-shebangs check-hooks-apply check-merge-conflict
-  check-xml debug-statements doctoc detect-private-key end-of-file-fixer flake8
-  forbid-tabs insert-license lint-dockerfile mixed-line-ending mypy pylint
-  pylint-test setup-order shellcheck
+              all all-but-pylint bat-tests check-apache-license
+              check-executables-have-shebangs check-hooks-apply check-merge-conflict
+              check-xml debug-statements doctoc detect-private-key end-of-file-fixer flake8
+              forbid-tabs insert-license lint-dockerfile mixed-line-ending mypy pylint
+              pylint-test setup-order shellcheck
 
           You can pass extra arguments including options to the pre-commit framework as
           <EXTRA_ARGS> passed after --. For example:
@@ -680,14 +680,14 @@ This is the current syntax for  `./breeze <./breeze>`_:
           Python version used for the image. This is always major/minor version.
           One of:
 
-  3.6 3.7
+              3.6 3.7
 
 
   -B, --backend <BACKEND>
           Backend to use for tests - it determines which database is used.
           One of:
 
-  sqlite mysql postgres
+              sqlite mysql postgres
 
           Default: sqlite
 
@@ -697,7 +697,7 @@ This is the current syntax for  `./breeze <./breeze>`_:
           Selected integrations are not saved for future execution.
           One of:
 
-  cassandra kerberos mongo openldap rabbitmq redis all
+              cassandra kerberos mongo openldap rabbitmq redis all
 
   *********************************************************************************************************
   **
@@ -726,7 +726,7 @@ This is the current syntax for  `./breeze <./breeze>`_:
           Kubernetes mode - only used in case --start-kind-cluster flag is specified.
           One of:
 
-  persistent_mode git_mode
+              persistent_mode git_mode
 
           Default: git_mode
 
@@ -734,7 +734,7 @@ This is the current syntax for  `./breeze <./breeze>`_:
           Kubernetes version - only used in case --start-kind-cluster flag is specified.
           One of:
 
-  v1.15.3 v1.16.2
+              v1.15.3 v1.16.2
 
           Default: v1.15.3
 
@@ -759,7 +759,7 @@ This is the current syntax for  `./breeze <./breeze>`_:
           released version of Airflow instead. One of:
 
 
-  current 1.10.9 1.10.8 1.10.7 1.10.6 1.10.5 1.10.4 1.10.3 1.10.2 1.10.1
+              current 1.10.9 1.10.8 1.10.7 1.10.6 1.10.5 1.10.4 1.10.3 1.10.2 1.10.1
 
           Default: current.
 

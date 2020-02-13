@@ -31,7 +31,8 @@ Airflow Test Infrastructure
 
 * **System tests** are automatic tests that use external systems like
   Google Cloud Platform. These tests are intended for an end-to-end DAG execution.
-  The tests can be executed on both.
+  The tests can be executed on both current version of Apache Airflow and any of the older
+  versions from 1.10.* series.
 
 This document is about running python tests, before the tests are run we also use
 `static code checks <STATIC_CODE_CHECKS.rst>`__ which allow to catch typical errors in code
@@ -504,7 +505,7 @@ As mentioned above - the system tests are only executed when you specify ``--sys
 flag where SYSTEMS is coma-separated list of systems to run the system tests for.
 
 
-Running tests for older Airflow versionsIRFLOW
+Running tests for older Airflow versions
 ----------------------------------------
 
 The tests can be executed against the master version of Airflow but they also work
