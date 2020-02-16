@@ -26,7 +26,7 @@ echo "Working in ${MY_DIR} folder"
 echo
 
 
-if [[ -f /.dockerenv ]]; then
+if [[ -f /.dockerenv && -n "${HOST_USER_ID:=}" && -n "${HOST_GROUP_ID:=}" ]]; then
     # This script can be run both - in container and outside of it.
     # Here we are inside the container which means that we should (when the host is Linux)
     # fix permissions of the _build and _api folders via sudo.
@@ -54,7 +54,6 @@ echo "Removed content of the _build and _api folders"
 set +e
 # shellcheck disable=SC2063
 NUM_INCORRECT_USE_LITERALINCLUDE=$(grep -inR --include \*.rst 'literalinclude::.\+example_dags' . | \
-    tee /dev/tty |
     wc -l |\
     tr -d '[:space:]')
 set -e
@@ -134,7 +133,6 @@ fi
 
 
 SUCCEED_LINE=$(make html |\
-    tee /dev/tty |\
     grep 'build succeeded' |\
     head -1)
 

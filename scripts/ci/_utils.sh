@@ -29,6 +29,10 @@ function check_verbose_setup {
     fi
 }
 
+function verbose_docker() {
+    echo "docker" "${@}"
+    docker "${@}"
+}
 
 function initialize_breeze_environment {
     AIRFLOW_SOURCES=${AIRFLOW_SOURCES:=$(cd "${MY_DIR}/../../" && pwd)}
@@ -717,7 +721,7 @@ function build_image_on_ci() {
     fi
 
     # Cleanup docker installation. It should be empty in CI but let's not risk
-    docker system prune --all --force
+    verbose_docker system prune --all --force
     rm -rf "${BUILD_CACHE_DIR}"
     mkdir -pv "${BUILD_CACHE_DIR}"
 
@@ -826,7 +830,7 @@ function check_and_save_allowed_param {
 }
 
 function run_docs() {
-    docker run "${EXTRA_DOCKER_FLAGS[@]}" -t \
+    verbose_docker run "${EXTRA_DOCKER_FLAGS[@]}" -t \
             --entrypoint "/usr/local/bin/dumb-init"  \
             --env PYTHONDONTWRITEBYTECODE \
             --env AIRFLOW_CI_VERBOSE="${VERBOSE}" \
@@ -838,3 +842,8 @@ function run_docs() {
             "--" "/opt/airflow/docs/build.sh" \
             | tee -a "${OUTPUT_LOG}"
 }
+
+function pull_base_python_image() {
+    verbose_docker pull "${PYTHON_BASE_IMAGE}"
+}
+

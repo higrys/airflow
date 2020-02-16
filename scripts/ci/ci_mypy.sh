@@ -29,7 +29,7 @@ function run_mypy() {
       FILES=(airflow tests docs)
     fi
 
-    docker run "${EXTRA_DOCKER_FLAGS[@]}" \
+    verbose_docker run "${EXTRA_DOCKER_FLAGS[@]}" \
         --entrypoint "/usr/local/bin/dumb-init"  \
         --env PYTHONDONTWRITEBYTECODE \
         --env AIRFLOW_CI_VERBOSE="${VERBOSE}" \
