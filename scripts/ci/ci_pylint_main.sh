@@ -62,5 +62,3 @@ if [[ "${#@}" != "0" ]]; then
 else
     run_pylint_main
 fi
-
-script_end

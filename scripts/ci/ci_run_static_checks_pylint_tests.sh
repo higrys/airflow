@@ -24,7 +24,6 @@ if [[ -f ${BUILD_CACHE_DIR}/.skip_tests ]]; then
     echo
     echo "Skip tests"
     echo
-    script_end
     exit
 fi
 

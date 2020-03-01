@@ -30,6 +30,13 @@ function check_verbose_setup {
 }
 
 
+function verbose_docker {
+    if [[ ${VERBOSE:="false"} == "true" ]]; then
+        echo "docker" "${@}"
+    fi
+    docker "${@}"
+}
+
 function initialize_breeze_environment {
     AIRFLOW_SOURCES=${AIRFLOW_SOURCES:=$(cd "${MY_DIR}/../../" && pwd)}
     export AIRFLOW_SOURCES
@@ -70,7 +77,7 @@ function initialize_breeze_environment {
     export PYTHONDONTWRITEBYTECODE=${PYTHONDONTWRITEBYTECODE:="true"}
 
     # By default we assume the kubernetes cluster is not being started
-   export ENABLE_KIND_CLUSTER=${ENABLE_KIND_CLUSTER:="false"}
+    export ENABLE_KIND_CLUSTER=${ENABLE_KIND_CLUSTER:="false"}
     #
     # Sets mounting of host volumes to container for static checks
     # unless MOUNT_HOST_AIRFLOW_VOLUME is not true
@@ -121,6 +128,24 @@ function initialize_breeze_environment {
     fi
 
     export EXTRA_DOCKER_FLAGS
+
+    # We use pulled docker image cache by default to speed up the builds
+    export DOCKER_CACHE=${DOCKER_CACHE:="pulled"}
+
+
+    STAT_BIN=stat
+    if [[ "${OSTYPE}" == "darwin"* ]]; then
+        STAT_BIN=gstat
+    fi
+
+    AIRFLOW_VERSION=$(cat airflow/version.py - << EOF | python
+print(version.replace("+",""))
+EOF
+    )
+    export AIRFLOW_VERSION
+
+    # default version for dockerhub images
+    export PYTHON_VERSION_FOR_DEFAULT_DOCKERHUB_IMAGE=3.6
 }
 
 function print_info() {
@@ -505,12 +530,7 @@ function confirm_image_rebuild() {
 }
 
 function rebuild_image_if_needed() {
-    AIRFLOW_VERSION=$(cat airflow/version.py - << EOF | python
-print(version.replace("+",""))
-EOF
-    )
-    export AIRFLOW_VERSION
-    export BUILT_IMAGE_FLAG_FILE="${BUILD_CACHE_DIR}/${BRANCH_NAME}/.built_${PYTHON_VERSION}"
+    set_image_variables
 
     if [[ -f "${BUILT_IMAGE_FLAG_FILE}" ]]; then
         print_info
@@ -543,8 +563,7 @@ EOF
             print_info
             print_info "Build start: ${THE_IMAGE_TYPE} image."
             print_info
-            # shellcheck source=hooks/build
-            ./hooks/build | tee -a "${OUTPUT_LOG}"
+            build_image
             update_all_md5_files
             print_info
             print_info "Build completed: ${THE_IMAGE_TYPE} image."
@@ -552,19 +571,9 @@ EOF
         fi
     else
         print_info
-        print_info "No need to rebuild - none of the important files changed: ${FILES_FOR_REBUILD_CHECK[*]}"
+        print_info "No need to build - none of the important files changed: ${FILES_FOR_REBUILD_CHECK[*]}"
         print_info
     fi
-}
-
-#
-# Rebuilds the image for tests if needed.
-#
-function rebuild_ci_image_if_needed() {
-    export THE_IMAGE_TYPE="CI"
-    export AIRFLOW_CI_IMAGE="${DOCKERHUB_USER}/${DOCKERHUB_REPO}:${DEFAULT_BRANCH}-python${PYTHON_VERSION}-ci"
-
-    rebuild_image_if_needed
 }
 
 
@@ -725,7 +734,7 @@ function build_image_on_ci() {
     fi
 
     # Cleanup docker installation. It should be empty in CI but let's not risk
-    docker system prune --all --force
+    verbose_docker system prune --all --force
     rm -rf "${BUILD_CACHE_DIR}"
     mkdir -pv "${BUILD_CACHE_DIR}"
 
@@ -834,7 +843,7 @@ function check_and_save_allowed_param {
 }
 
 function run_docs() {
-    docker run "${EXTRA_DOCKER_FLAGS[@]}" -t \
+    verbose_docker run "${EXTRA_DOCKER_FLAGS[@]}" -t \
             --entrypoint "/usr/local/bin/dumb-init"  \
             --env PYTHONDONTWRITEBYTECODE \
             --env VERBOSE \
@@ -845,4 +854,246 @@ function run_docs() {
             "${AIRFLOW_CI_IMAGE}" \
             "--" "/opt/airflow/docs/build.sh" \
             | tee -a "${OUTPUT_LOG}"
+}
+
+function pull_image_if_needed() {
+    # Whether to force pull images to populate cache
+    export FORCE_PULL_IMAGES=${FORCE_PULL_IMAGES:="false"}
+    # In CI environment we skip pulling latest python image
+    export PULL_BASE_IMAGES=${PULL_BASE_IMAGES:="false"}
+
+    if [[ "${DOCKER_CACHE}" == "pulled" ]]; then
+        if [[ "${FORCE_PULL_IMAGES}" == "true" ]]; then
+            if [[ ${PULL_BASE_IMAGES} == "false" ]]; then
+                echo
+                echo "Skip force-pulling the ${PYTHON_BASE_IMAGE} image."
+                echo
+            else
+                echo
+                echo "Force pull base image ${PYTHON_BASE_IMAGE}"
+                echo
+                verbose_docker pull "${PYTHON_BASE_IMAGE}"
+                echo
+            fi
+        fi
+        IMAGES="${AIRFLOW_IMAGE}"
+        for IMAGE in ${IMAGES}
+        do
+            local PULL_IMAGE=${FORCE_PULL_IMAGES}
+            local IMAGE_HASH
+            IMAGE_HASH=$(verbose_docker images -q "${IMAGE}" 2> /dev/null)
+            if [[ "${IMAGE_HASH}" == "" ]]; then
+                PULL_IMAGE="true"
+            fi
+            if [[ "${PULL_IMAGE}" == "true" ]]; then
+                echo
+                echo "Pulling the image ${IMAGE}"
+                echo
+                verbose_docker pull "${IMAGE}" || true
+                echo
+            fi
+        done
+    fi
+}
+
+function print_build_info() {
+    print_info
+    print_info "Airflow ${AIRFLOW_VERSION} Python: ${PYTHON_VERSION}. Image description: ${IMAGE_DESCRIPTION}"
+    print_info
+}
+
+function spin() {
+    local FILE_TO_MONITOR=${1}
+    local SPIN=("-" "\\" "|" "/")
+    echo -n " Build log: ${FILE_TO_MONITOR} ${SPIN[0]}" > "${DETECTED_TERMINAL}"
+
+    while "true"
+    do
+      for i in "${SPIN[@]}"
+      do
+            echo -ne "\b$i" > "${DETECTED_TERMINAL}"
+            local LAST_FILE_SIZE
+            local FILE_SIZE
+            LAST_FILE_SIZE=$(set +e; wc -c "${FILE_TO_MONITOR}" 2>/dev/null | awk '{print $1}' || true)
+            FILE_SIZE=${LAST_FILE_SIZE}
+            while [[ "${LAST_FILE_SIZE}" == "${FILE_SIZE}" ]];
+            do
+                FILE_SIZE=$(set +e; wc -c "${FILE_TO_MONITOR}" 2>/dev/null | awk '{print $1}' || true)
+                sleep 0.2
+            done
+            LAST_FILE_SIZE=FILE_SIZE
+            sleep 0.2
+            if [[ ! -f "${FILE_TO_MONITOR}" ]]; then
+                exit
+            fi
+      done
+    done
+}
+
+function build_image() {
+    print_build_info
+    echo
+    echo Building image "${IMAGE_DESCRIPTION}"
+    echo
+    pull_image_if_needed
+
+    if [[ "${DOCKER_CACHE}" == "no-cache" ]]; then
+        export DOCKER_CACHE_CI_DIRECTIVE=("--no-cache")
+    elif [[ "${DOCKER_CACHE}" == "local" ]]; then
+        export DOCKER_CACHE_CI_DIRECTIVE=()
+    elif [[ "${DOCKER_CACHE}" == "pulled" ]]; then
+        export DOCKER_CACHE_CI_DIRECTIVE=(
+            "--cache-from" "${AIRFLOW_CI_IMAGE}"
+        )
+    else
+        echo 2>&1
+        echo 2>&1 "Error - thee ${DOCKER_CACHE} cache is unknown!"
+        echo 2>&1
+        exit 1
+    fi
+    if [[ -n ${DETECTED_TERMINAL:=""} ]]; then
+        echo -n "Building ${THE_IMAGE_TYPE}.
+        " > "${DETECTED_TERMINAL}"
+        spin "${OUTPUT_LOG}" &
+        SPIN_PID=$!
+        # shellcheck disable=SC2064
+        trap "kill ${SPIN_PID}" SIGINT SIGTERM
+    fi
+    if [[ ${THE_IMAGE_TYPE} == "CI" ]]; then
+        set +u
+        verbose_docker build \
+            --build-arg PYTHON_BASE_IMAGE="${PYTHON_BASE_IMAGE}" \
+            --build-arg AIRFLOW_VERSION="${AIRFLOW_VERSION}" \
+            --build-arg AIRFLOW_BRANCH="${BRANCH_NAME}" \
+            --build-arg AIRFLOW_EXTRAS="${AIRFLOW_EXTRAS}" \
+            --build-arg AIRFLOW_CONTAINER_CI_OPTIMISED_BUILD="${AIRFLOW_CONTAINER_CI_OPTIMISED_BUILD}" \
+            "${DOCKER_CACHE_CI_DIRECTIVE[@]}" \
+            -t "${AIRFLOW_CI_IMAGE}" \
+            --target "${TARGET_IMAGE}" \
+            . | tee -a "${OUTPUT_LOG}"
+        set -u
+    fi
+    if [[ -n "${DEFAULT_IMAGE:=}" ]]; then
+        verbose_docker tag "${AIRFLOW_IMAGE}" "${DEFAULT_IMAGE}" | tee -a "${OUTPUT_LOG}"
+    fi
+    if [[ -n ${SPIN_PID:=""} ]]; then
+        kill "${SPIN_PID}" || true
+        wait "${SPIN_PID}" || true
+        echo > "${DETECTED_TERMINAL}"
+    fi
+}
+
+function remove_all_images() {
+    echo
+    "${AIRFLOW_SOURCES}/confirm" "Removing all local images ."
+    echo
+    verbose_docker rmi "${PYTHON_BASE_IMAGE}" || true
+    verbose_docker rmi "${AIRFLOW_CI_IMAGE}" || true
+    echo
+    echo "###################################################################"
+    echo "NOTE!! Removed Airflow images for Python version ${PYTHON_VERSION}."
+    echo "       But the disk space in docker will be reclaimed only after"
+    echo "       running 'docker system prune' command."
+    echo "###################################################################"
+    echo
+}
+
+
+function set_image_variables() {
+    export PYTHON_BASE_IMAGE="python:${PYTHON_VERSION}-slim-stretch"
+    export BUILT_IMAGE_FLAG_FILE="${BUILD_CACHE_DIR}/${BRANCH_NAME}/.built_${PYTHON_VERSION}"
+
+    if [[ ${THE_IMAGE_TYPE:=} == "CI" ]]; then
+        export AIRFLOW_IMAGE="${AIRFLOW_CI_IMAGE}"
+        export AIRFLOW_IMAGE_DEFAULT="${AIRFLOW_CI_IMAGE_DEFAULT}"
+    else
+        export AIRFLOW_IMAGE=""
+        export AIRFLOW_IMAGE_DEFAULT=""
+    fi
+
+    if [[ "${PYTHON_VERSION_FOR_DEFAULT_DOCKERHUB_IMAGE}" == "${PYTHON_VERSION}" ]]; then
+        export DEFAULT_IMAGE="${AIRFLOW_IMAGE_DEFAULT}"
+    else
+        export DEFAULT_IMAGE=""
+    fi
+}
+
+function get_image_variables {
+    export AIRFLOW_CI_IMAGE="${DOCKERHUB_USER}/${DOCKERHUB_REPO}:${DEFAULT_BRANCH}-python${PYTHON_VERSION}-ci"
+    export AIRFLOW_CI_SAVED_IMAGE_DIR="${BUILD_CACHE_DIR}/${DEFAULT_BRANCH}-python${PYTHON_VERSION}-ci-image"
+    export AIRFLOW_CI_IMAGE_ID_FILE="${BUILD_CACHE_DIR}/${DEFAULT_BRANCH}-python${PYTHON_VERSION}-ci-image.sha256"
+    export AIRFLOW_CI_IMAGE_DEFAULT="${DOCKERHUB_USER}/${DOCKERHUB_REPO}:${DEFAULT_BRANCH}-ci"
+    echo
+    echo "Using CI image: ${AIRFLOW_CI_IMAGE} for docker compose runs"
+    echo
+}
+
+# Fixing permissions for all important files that are going to be added to Docker context
+# This is necessary, because there are different default umask settings on different *NIX
+# In case of some systems (especially in the CI environments) there is default +w group permission
+# set automatically via UMASK when git checkout is performed.
+#    https://unix.stackexchange.com/questions/315121/why-is-the-default-umask-002-or-022-in-many-unix-systems-seems-insecure-by-defa
+# Unfortunately default setting in git is to use UMASK by default:
+#    https://git-scm.com/docs/git-config/1.6.3.1#git-config-coresharedRepository
+# This messes around with Docker context invalidation because the same files have different permissions
+# and effectively different hash used for context validation calculation.
+#
+# We fix it by removing write permissions for other/group for all files that are in the Docker context.
+#
+# Since we can't (easily) tell what dockerignore would restrict, we'll just to
+# it to "all" files in the git repo, making sure to exclude the www/static/docs
+# symlink which is broken until the docs are built.
+function filterout_deleted_files {
+  # Take NUL-separated stdin, return only files that exist on stdout NUL-separated
+  # This is to cope with users deleting files or folders locally but not doing `git rm`
+  xargs -0 "$STAT_BIN" --printf '%n\0' 2>/dev/null || true;
+}
+
+function fix_group_permissions() {
+    if [[ ${PERMISSIONS_FIXED:=} == "true" ]]; then
+        echo
+        echo "Permissions already fixed"
+        echo
+        return
+    fi
+    echo
+    echo "Fixing group permissions"
+    pushd "${AIRFLOW_SOURCES}" >/dev/null
+    # This deals with files
+    git ls-files -z -- ./ | filterout_deleted_files | xargs -0 chmod og-w
+    # and this deals with directories
+    git ls-tree -z -r -d --name-only HEAD | filterout_deleted_files | xargs -0 chmod og-w,og+x
+    popd >/dev/null
+    echo "Fixed group permissions"
+    echo
+    export PERMISSIONS_FIXED="true"
+}
+
+function prepare_build() {
+    get_image_variables
+    forget_last_answer
+    go_to_airflow_sources
+    fix_group_permissions
+}
+
+push_image() {
+    set_image_variables
+    verbose_docker push "${AIRFLOW_IMAGE}"
+    if [[ -n ${DEFAULT_IMAGE:=""} ]]; then
+        verbose_docker push "${DEFAULT_IMAGE}"
+    fi
+}
+
+function rebuild_ci_image_if_needed() {
+    export THE_IMAGE_TYPE="CI"
+    export IMAGE_DESCRIPTION="Airflow CI"
+    export TARGET_IMAGE="main"
+    export AIRFLOW_CONTAINER_CI_OPTIMISED_BUILD="true"
+    export AIRFLOW_EXTRAS="devel_ci"
+    rebuild_image_if_needed
+}
+
+function push_ci_image() {
+    export THE_IMAGE_TYPE="CI"
+    push_image
 }
