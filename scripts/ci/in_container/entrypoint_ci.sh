@@ -114,6 +114,7 @@ fi
 mkdir -pv "${AIRFLOW_HOME}/logs/"
 cp -f "${MY_DIR}/airflow_ci.cfg" "${AIRFLOW_HOME}/unittests.cfg"
 
+"${MY_DIR}/force_ipv4_lookup.sh"
 
 "${MY_DIR}/check_environment.sh"
 

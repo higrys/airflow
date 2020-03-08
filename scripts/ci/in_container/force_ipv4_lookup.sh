@@ -21,3 +21,4 @@ sed --in-place '/^precedence ::ffff:0:0\/96  10$/d' /etc/gai.conf
 sed '/.*ip6-/d' </etc/hosts >/tmp/etchosts
 cat /tmp/etchosts >/etc/hosts
 rm /tmp/etchosts
+cat /etc/hosts
