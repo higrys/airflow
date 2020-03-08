@@ -147,4 +147,5 @@ jobs:
 #      script: ./scripts/ci/ci_prepare_backport_packages.sh
 before_install:
   - ./scripts/ci/ci_before_install.sh
-script: "./scripts/ci/ci_run_airflow_testing.sh tests/test_impersonation.py"
+script:
+  ./scripts/ci/ci_run_airflow_testing.sh tests/test_example_dags_system.py tests/test_impersonation.py
