@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -14,25 +15,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
----
-version: "2.2"
-services:
-  airflow-testing:
-    environment:
-      - BACKEND=mysql
-      - AIRFLOW__CORE__SQL_ALCHEMY_CONN=mysql://root@mysql/airflow
-      - AIRFLOW__CELERY__RESULT_BACKEND=db+mysql://root@mysql/airflow
-    depends_on:
-      - mysql
-  mysql:
-    image: mysql:5.6
-    command: --bind-address=0.0.0.0
-    environment:
-      - MYSQL_ALLOW_EMPTY_PASSWORD=true
-      - MYSQL_ROOT_HOST=%
-      - MYSQL_DATABASE=airflow
-    volumes:
-      - ../mysql/conf.d:/etc/mysql/conf.d:ro
-      - /dev/urandom:/dev/random   # Required to get non-blocking entropy source
-    ports:
-      - "${MYSQL_HOST_PORT}:3306"
+sed --in-place 's/^#precedence/precedence/g' /etc/gai.conf
+sed --in-place '/^precedence ::ffff:0:0\/96  10$/d' /etc/gai.conf
+# Cannot rename /etc/hosts in-place inside docker
+sed '/.*ip6-/d' </etc/hosts >/tmp/etchosts
+cat /tmp/etchosts >/etc/hosts
+rm /tmp/etchosts
