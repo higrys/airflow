@@ -133,7 +133,7 @@ jobs:
         ENABLED_INTEGRATIONS="kerberos"
       script: "./scripts/ci/ci_run_airflow_testing.sh --ignore=tests/providers"
       stage: test
-    - name: "Prepare backport packages"
+    - name: "Prepare & test backport packages"
       before_install: pip install bowler
       stage: test
       script: ./scripts/ci/ci_prepare_backport_packages.sh
