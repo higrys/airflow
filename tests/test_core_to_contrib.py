@@ -25,6 +25,10 @@ from parameterized import parameterized
 
 HOOK = [
     (
+        "airflow.providers.apache.cassandra.hooks.cassandra.CassandraHook",
+        "airflow.contrib.hooks.cassandra_hook.CassandraHook",
+    ),
+    (
         "airflow.providers.google.cloud.hooks.compute.ComputeEngineHook",
         "airflow.contrib.hooks.gcp_compute_hook.GceHook",
     ),
@@ -184,14 +188,14 @@ HOOK = [
         'airflow.providers.apache.druid.hooks.druid.DruidDbApiHook',
         'airflow.hooks.druid_hook.DruidDbApiHook',
     ),
-    (
-        'airflow.providers.apache.hdfs.hooks.hdfs.HDFSHookException',
-        'airflow.hooks.hdfs_hook.HDFSHookException',
-    ),
-    (
-        'airflow.providers.apache.hdfs.hooks.hdfs.HDFSHook',
-        'airflow.hooks.hdfs_hook.HDFSHook',
-    ),
+    # (
+    #     'airflow.providers.apache.hdfs.hooks.hdfs.HDFSHookException',
+    #     'airflow.hooks.hdfs_hook.HDFSHookException',
+    # ),
+    # (
+    #     'airflow.providers.apache.hdfs.hooks.hdfs.HDFSHook',
+    #     'airflow.hooks.hdfs_hook.HDFSHook',
+    # ),
     (
         'airflow.providers.apache.hive.hooks.hive.HiveMetastoreHook',
         'airflow.hooks.hive_hooks.HiveMetastoreHook',
@@ -1051,6 +1055,10 @@ OPERATOR = [
         'airflow.contrib.operators.spark_submit_operator.SparkSubmitOperator',
     ),
     (
+        'airflow.providers.apache.spark.operators.spark_jdbc.SparkJDBCOperator',
+        'airflow.contrib.operators.spark_jdbc_operator.SparkJDBCOperator',
+    ),
+    (
         'airflow.providers.apache.sqoop.operators.sqoop.SqoopOperator',
         'airflow.contrib.operators.sqoop_operator.SqoopOperator',
     ),
@@ -1061,6 +1069,14 @@ OPERATOR = [
     (
         'airflow.providers.apache.hive.operators.hive.HiveOperator',
         'airflow.operators.hive_operator.HiveOperator',
+    ),
+    (
+        'airflow.providers.apache.hive.operators.mysql_to_hive.MySqlToHiveTransfer',
+        'airflow.operators.mysql_to_hive.MySqlToHiveTransfer',
+    ),
+    (
+        'airflow.providers.apache.hive.operators.s3_to_hive.S3ToHiveTransfer',
+        'airflow.operators.s3_to_hive_operator.S3ToHiveTransfer',
     ),
     (
         'airflow.providers.apache.hive.operators.hive_stats.HiveStatsCollectionOperator',
@@ -1260,11 +1276,6 @@ OPERATOR = [
         'airflow.contrib.operators.vertica_operator.VerticaOperator',
     ),
     (
-        'airflow.providers.datadog.sensors.datadog.DatadogSensor',
-        'airflow.contrib.sensors.datadog_sensor.DatadogSensor',
-    ),
-
-    (
         'airflow.providers.slack.operators.slack.SlackAPIPostOperator',
         'airflow.operators.slack_operator.SlackAPIPostOperator',
     ),
@@ -1457,6 +1468,18 @@ SECRETS = [
 
 SENSOR = [
     (
+        "airflow.providers.apache.cassandra.sensors.record.CassandraRecordSensor",
+        "airflow.contrib.sensors.cassandra_record_sensor.CassandraRecordSensor",
+    ),
+    (
+        "airflow.providers.apache.cassandra.sensors.table.CassandraTableSensor",
+        "airflow.contrib.sensors.cassandra_table_sensor.CassandraTableSensor",
+    ),
+    (
+        'airflow.providers.datadog.sensors.datadog.DatadogSensor',
+        'airflow.contrib.sensors.datadog_sensor.DatadogSensor',
+    ),
+    (
         "airflow.providers.google.cloud.sensors.bigtable.BigtableTableReplicationCompletedSensor",
         "airflow.contrib.operators.gcp_bigtable_operator."
         "BigtableTableWaitForReplicationSensor",
@@ -1499,14 +1522,14 @@ SENSOR = [
         "airflow.providers.amazon.aws.sensors.sqs.SQSSensor",
         "airflow.contrib.sensors.aws_sqs_sensor.SQSSensor",
     ),
-    (
-        'airflow.providers.apache.hdfs.sensors.hdfs.HdfsSensorFolder',
-        'airflow.contrib.sensors.hdfs_sensor.HdfsSensorFolder',
-    ),
-    (
-        'airflow.providers.apache.hdfs.sensors.hdfs.HdfsSensorRegex',
-        'airflow.contrib.sensors.hdfs_sensor.HdfsSensorRegex',
-    ),
+    # (
+    #     'airflow.providers.apache.hdfs.sensors.hdfs.HdfsSensorFolder',
+    #     'airflow.contrib.sensors.hdfs_sensor.HdfsSensorFolder',
+    # ),
+    # (
+    #     'airflow.providers.apache.hdfs.sensors.hdfs.HdfsSensorRegex',
+    #     'airflow.contrib.sensors.hdfs_sensor.HdfsSensorRegex',
+    # ),
     (
         'airflow.providers.apache.hive.sensors.hive_partition.HivePartitionSensor',
         'airflow.sensors.hive_partition_sensor.HivePartitionSensor',
@@ -1523,10 +1546,10 @@ SENSOR = [
         'airflow.providers.apache.hdfs.sensors.web_hdfs.WebHdfsSensor',
         'airflow.sensors.web_hdfs_sensor.WebHdfsSensor',
     ),
-    (
-        'airflow.providers.apache.hdfs.sensors.hdfs.HdfsSensor',
-        'airflow.sensors.hdfs_sensor.HdfsSensor',
-    ),
+    # (
+    #     'airflow.providers.apache.hdfs.sensors.hdfs.HdfsSensor',
+    #     'airflow.sensors.hdfs_sensor.HdfsSensor',
+    # ),
     (
         'airflow.sensors.weekday_sensor.DayOfWeekSensor',
         'airflow.contrib.sensors.weekday_sensor.DayOfWeekSensor',

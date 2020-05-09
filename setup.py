@@ -249,8 +249,9 @@ flask_oauth = [
     'oauthlib!=2.0.3,!=2.0.4,!=2.0.5,<3.0.0,>=1.1.2',
     'requests-oauthlib==1.1.0',
 ]
-gcp = [
+google = [
     'PyOpenSSL',
+    'apache-beam',
     'google-ads>=4.0.0',
     'google-api-python-client>=1.6.0, <2.0.0dev',
     'google-auth>=1.0.0, <2.0.0dev',
@@ -386,6 +387,9 @@ snowflake = [
     'snowflake-connector-python>=1.5.2',
     'snowflake-sqlalchemy>=1.1.0',
 ]
+spark = [
+    'pyspark',
+]
 ssh = [
     'paramiko>=2.6.0',
     'pysftp>=0.2.9',
@@ -475,10 +479,10 @@ devel_minreq = cgroups + devel + doc + kubernetes + mysql + password
 devel_hadoop = devel_minreq + hdfs + hive + kerberos + presto + webhdfs
 
 devel_all = (all_dbs + atlas + aws + azure + celery + cgroups + dask + datadog + devel + doc + docker +
-             elasticsearch + exasol + facebook + gcp + grpc + hashicorp + jdbc + jenkins + kerberos +
+             elasticsearch + exasol + facebook + google + grpc + hashicorp + jdbc + jenkins + kerberos +
              kubernetes + ldap + odbc + oracle + pagerduty + papermill + password + redis + salesforce +
-             samba + segment + sendgrid + sentry + singularity + slack + snowflake + ssh + statsd + tableau +
-             virtualenv + webhdfs + yandexcloud + zendesk)
+             samba + segment + sendgrid + sentry + singularity + slack + snowflake + spark + ssh + statsd +
+             tableau + virtualenv + webhdfs + yandexcloud + zendesk)
 
 # Snakebite is not Python 3 compatible :'(
 if PY3:
@@ -510,8 +514,8 @@ EXTRAS_REQUIREMENTS = {
     'elasticsearch': elasticsearch,
     'exasol': exasol,
     'facebook': facebook,
-    'gcp': gcp,
-    'gcp_api': gcp,  # TODO: remove this in Airflow 2.1
+    'google': google,
+    'gcp_api': google,  # TODO: remove this in Airflow 2.1
     'github_enterprise': flask_oauth,
     'google_auth': flask_oauth,
     'grpc': grpc,
@@ -545,6 +549,7 @@ EXTRAS_REQUIREMENTS = {
     'singularity': singularity,
     'slack': slack,
     'snowflake': snowflake,
+    'spark': spark,
     'ssh': ssh,
     'statsd': statsd,
     'tableau': tableau,
