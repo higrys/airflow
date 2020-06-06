@@ -23,10 +23,9 @@
 function add_build_args_for_remote_install() {
     # entrypoint is used as AIRFLOW_SOURCES_FROM/TO in order to avoid costly copying of all sources of
     # Airflow - those are not needed for remote install at all. Entrypoint is later overwritten by
-    # ENTRYPOINT_FILE - downloaded entrypoint.sh so this is only for the purpose of iteration on Dockerfile
     EXTRA_DOCKER_PROD_BUILD_FLAGS+=(
-        "--build-arg" "AIRFLOW_SOURCES_FROM=entrypoint.sh"
-        "--build-arg" "AIRFLOW_SOURCES_TO=/entrypoint"
+        "--build-arg" "AIRFLOW_SOURCES_FROM=empty"
+        "--build-arg" "AIRFLOW_SOURCES_TO=/empty"
     )
     if [[ ${AIRFLOW_VERSION} =~ [^0-9]*1[^0-9]*10[^0-9]([0-9]*) ]]; then
         # All types of references/versions match this regexp for 1.10 series
@@ -36,21 +35,20 @@ function add_build_args_for_remote_install() {
             # This is only for 1.10.0 - 1.10.9
             EXTRA_DOCKER_PROD_BUILD_FLAGS+=(
                 "--build-arg" "CONSTRAINT_REQUIREMENTS=https://raw.githubusercontent.com/apache/airflow/1.10.10/requirements/requirements-python${PYTHON_MAJOR_MINOR_VERSION}.txt"
-                "--build-arg" "ENTRYPOINT_FILE=https://raw.githubusercontent.com/apache/airflow/1.10.10/entrypoint.sh"
             )
         else
             EXTRA_DOCKER_PROD_BUILD_FLAGS+=(
                 # For 1.10.10+ and v1-10-test it's ok to use AIRFLOW_VERSION as reference
                 "--build-arg" "CONSTRAINT_REQUIREMENTS=https://raw.githubusercontent.com/apache/airflow/${AIRFLOW_VERSION}/requirements/requirements-python${PYTHON_MAJOR_MINOR_VERSION}.txt"
-                "--build-arg" "ENTRYPOINT_FILE=https://raw.githubusercontent.com/apache/airflow/${AIRFLOW_VERSION}/entrypoint.sh"
             )
         fi
+        AIRFLOW_BRANCH_FOR_PYPI_PRELOADING="v1-10-test"
     else
         # For all other (master, 2.0+) we just match ${AIRFLOW_VERSION}
         EXTRA_DOCKER_PROD_BUILD_FLAGS+=(
             "--build-arg" "CONSTRAINT_REQUIREMENTS=https://raw.githubusercontent.com/apache/airflow/${AIRFLOW_VERSION}/requirements/requirements-python${PYTHON_MAJOR_MINOR_VERSION}.txt"
-            "--build-arg" "ENTRYPOINT_FILE=https://raw.githubusercontent.com/apache/airflow/${AIRFLOW_VERSION}/entrypoint.sh"
         )
+        AIRFLOW_BRANCH_FOR_PYPI_PRELOADING="master"
     fi
 }
 
@@ -205,10 +203,10 @@ function get_local_image_info() {
     TMP_MANIFEST_LOCAL_SHA=$(mktemp)
     set +e
     # Remove the container just in case
-    verbose_docker rm --force "local-airflow-manifest"  >/dev/null 2>&1
+    verbose_docker_hide_output_on_success rm --force "local-airflow-manifest"
     # Create manifest from the local manifest image
-    if ! verbose_docker create --name "local-airflow-manifest" \
-        "${AIRFLOW_CI_LOCAL_MANIFEST_IMAGE}"  >/dev/null 2>&1 ; then
+    if ! verbose_docker_hide_output_on_success create --name "local-airflow-manifest" \
+        "${AIRFLOW_CI_LOCAL_MANIFEST_IMAGE}"  >>"${OUTPUT_LOG}" 2>&1 ; then
         echo
         echo "Local manifest image not available"
         echo
@@ -217,9 +215,10 @@ function get_local_image_info() {
     fi
     set -e
      # Create manifest from the local manifest image
-    verbose_docker cp "local-airflow-manifest:${AIRFLOW_CI_BASE_TAG}.json" "${TMP_MANIFEST_LOCAL_JSON}" >/dev/null 2>&1
+    verbose_docker_hide_output_on_success cp "local-airflow-manifest:${AIRFLOW_CI_BASE_TAG}.json" \
+        "${TMP_MANIFEST_LOCAL_JSON}" >>"${OUTPUT_LOG}" 2>&1
     sed 's/ *//g' "${TMP_MANIFEST_LOCAL_JSON}" | grep '^"sha256:' >"${TMP_MANIFEST_LOCAL_SHA}"
-    verbose_docker rm --force "local-airflow-manifest" >/dev/null 2>&1
+    verbose_docker_hide_output_on_success rm --force "local-airflow-manifest" >>"${OUTPUT_LOG}" 2>&1
 }
 
 #
@@ -233,7 +232,7 @@ function get_local_image_info() {
 function get_remote_image_info() {
     set +e
     # Pull remote manifest image
-    if ! verbose_docker pull "${AIRFLOW_CI_REMOTE_MANIFEST_IMAGE}" >/dev/null; then
+    if ! verbose_docker_hide_output_on_success pull "${AIRFLOW_CI_REMOTE_MANIFEST_IMAGE}";  then
         echo
         echo "Remote docker registry unreachable"
         echo
@@ -243,18 +242,20 @@ function get_remote_image_info() {
     set -e
 
     # Docker needs the file passed to --cidfile to not exist, so we can't use mktemp
-    TMP_CONTAINER_ID="remote-airflow-manifest-$$.container_id"
+    TMP_CONTAINER_ID="${TMP_DIR}/remote-airflow-manifest-$$.container_id"
     FILES_TO_CLEANUP_ON_EXIT+=("$TMP_CONTAINER_ID")
 
     TMP_MANIFEST_REMOTE_JSON=$(mktemp)
     TMP_MANIFEST_REMOTE_SHA=$(mktemp)
     # Create container out of the manifest image without running it
-    verbose_docker create --cidfile "${TMP_CONTAINER_ID}" "${AIRFLOW_CI_REMOTE_MANIFEST_IMAGE}"
+    verbose_docker_hide_output_on_success create --cidfile "${TMP_CONTAINER_ID}" \
+        "${AIRFLOW_CI_REMOTE_MANIFEST_IMAGE}"
     # Extract manifest and store it in local file
-    verbose_docker cp "$(cat "${TMP_CONTAINER_ID}"):${AIRFLOW_CI_BASE_TAG}.json" "${TMP_MANIFEST_REMOTE_JSON}"
+    verbose_docker_hide_output_on_success cp "$(cat "${TMP_CONTAINER_ID}"):${AIRFLOW_CI_BASE_TAG}.json" \
+        "${TMP_MANIFEST_REMOTE_JSON}"
     # Filter everything except SHAs of image layers
     sed 's/ *//g' "${TMP_MANIFEST_REMOTE_JSON}" | grep '^"sha256:' >"${TMP_MANIFEST_REMOTE_SHA}"
-    verbose_docker rm --force "$( cat "${TMP_CONTAINER_ID}")"
+    verbose_docker_hide_output_on_success rm --force "$( cat "${TMP_CONTAINER_ID}")"
 }
 
 # The Number determines the cut-off between local building time and pull + build time.
@@ -272,7 +273,7 @@ function get_remote_image_info() {
 # Note that this only matters if you have any of the important files changed since the last build
 # of your image such as Dockerfile.ci, setup.py etc.
 #
-MAGIC_CUT_OFF_NUMBER_OF_LAYERS=34
+MAGIC_CUT_OFF_NUMBER_OF_LAYERS=36
 
 # Compares layers from both remote and local image and set FORCE_PULL_IMAGES to true in case
 # More than the last NN layers are different.
@@ -395,11 +396,11 @@ function get_ci_environment() {
 # Prepares all variables needed by the CI build. Depending on the configuration used (python version
 # DockerHub user etc. the variables are set so that other functions can use those variables.
 function prepare_ci_build() {
-    export AIRFLOW_CI_BASE_TAG="${DEFAULT_BRANCH}-python${PYTHON_MAJOR_MINOR_VERSION}-ci"
+    export AIRFLOW_CI_BASE_TAG="${BRANCH_NAME}-python${PYTHON_MAJOR_MINOR_VERSION}-ci"
     export AIRFLOW_CI_LOCAL_MANIFEST_IMAGE="local/${DOCKERHUB_REPO}:${AIRFLOW_CI_BASE_TAG}-manifest"
     export AIRFLOW_CI_REMOTE_MANIFEST_IMAGE="${DOCKERHUB_USER}/${DOCKERHUB_REPO}:${AIRFLOW_CI_BASE_TAG}-manifest"
     export AIRFLOW_CI_IMAGE="${DOCKERHUB_USER}/${DOCKERHUB_REPO}:${AIRFLOW_CI_BASE_TAG}"
-    if [[ ${ENABLE_REGISTRY_CACHE="false"} == "true" ]]; then
+    if [[ ${USE_GITHUB_REGISTRY="false"} == "true" ]]; then
         if [[ ${CACHE_REGISTRY_PASSWORD:=} != "" ]]; then
             echo "${CACHE_REGISTRY_PASSWORD}" | docker login \
                 --username "${CACHE_REGISTRY_USERNAME}" \
@@ -414,7 +415,7 @@ function prepare_ci_build() {
         export CACHED_PYTHON_BASE_IMAGE=""
     fi
     export AIRFLOW_BUILD_CI_IMAGE="${DOCKERHUB_USER}/${DOCKERHUB_REPO}/${AIRFLOW_CI_BASE_TAG}"
-    export AIRFLOW_CI_IMAGE_DEFAULT="${DOCKERHUB_USER}/${DOCKERHUB_REPO}:${DEFAULT_BRANCH}-ci"
+    export AIRFLOW_CI_IMAGE_DEFAULT="${DOCKERHUB_USER}/${DOCKERHUB_REPO}:${BRANCH_NAME}-ci"
     export PYTHON_BASE_IMAGE="python:${PYTHON_MAJOR_MINOR_VERSION}-slim-buster"
     export BUILT_IMAGE_FLAG_FILE="${BUILD_CACHE_DIR}/${BRANCH_NAME}/.built_${PYTHON_MAJOR_MINOR_VERSION}"
     if [[ "${DEFAULT_PYTHON_MAJOR_MINOR_VERSION}" == "${PYTHON_MAJOR_MINOR_VERSION}" ]]; then
@@ -424,7 +425,6 @@ function prepare_ci_build() {
     fi
     export THE_IMAGE_TYPE="CI"
     export IMAGE_DESCRIPTION="Airflow CI"
-    export AIRFLOW_CONTAINER_CI_OPTIMISED_BUILD="true"
     export AIRFLOW_EXTRAS="${AIRFLOW_EXTRAS:="${DEFAULT_CI_EXTRAS}"}"
     export ADDITIONAL_AIRFLOW_EXTRAS="${ADDITIONAL_AIRFLOW_EXTRAS:=""}"
     export ADDITIONAL_PYTHON_DEPS="${ADDITIONAL_PYTHON_DEPS:=""}"
@@ -627,7 +627,6 @@ Docker building ${AIRFLOW_CI_IMAGE}.
         --build-arg AIRFLOW_EXTRAS="${AIRFLOW_EXTRAS}" \
         --build-arg ADDITIONAL_AIRFLOW_EXTRAS="${ADDITIONAL_AIRFLOW_EXTRAS}" \
         --build-arg ADDITIONAL_PYTHON_DEPS="${ADDITIONAL_PYTHON_DEPS}" \
-        --build-arg AIRFLOW_CONTAINER_CI_OPTIMISED_BUILD="${AIRFLOW_CONTAINER_CI_OPTIMISED_BUILD}" \
         --build-arg UPGRADE_TO_LATEST_REQUIREMENTS="${UPGRADE_TO_LATEST_REQUIREMENTS}" \
         "${DOCKER_CACHE_CI_DIRECTIVE[@]}" \
         -t "${AIRFLOW_CI_IMAGE}" \
@@ -647,10 +646,31 @@ Docker building ${AIRFLOW_CI_IMAGE}.
 # Prepares all variables needed by the CI build. Depending on the configuration used (python version
 # DockerHub user etc. the variables are set so that other functions can use those variables.
 function prepare_prod_build() {
-    export AIRFLOW_PROD_BASE_TAG="${DEFAULT_BRANCH}-python${PYTHON_MAJOR_MINOR_VERSION}"
+    if [[ "${INSTALL_AIRFLOW_REFERENCE:=}" != "" ]]; then
+        # When --install-airflow-reference is used then the image is build from github tag
+        EXTRA_DOCKER_PROD_BUILD_FLAGS=(
+            "--build-arg" "AIRFLOW_INSTALL_SOURCES=https://github.com/apache/airflow/archive/${INSTALL_AIRFLOW_REFERENCE}.tar.gz#egg=apache-airflow"
+        )
+        export AIRFLOW_VERSION="${INSTALL_AIRFLOW_REFERENCE}"
+        add_build_args_for_remote_install
+    elif [[ "${INSTALL_AIRFLOW_VERSION:=}" != "" ]]; then
+        # When --install-airflow-version is used then the image is build from PIP package
+        EXTRA_DOCKER_PROD_BUILD_FLAGS=(
+            "--build-arg" "AIRFLOW_INSTALL_SOURCES=apache-airflow"
+            "--build-arg" "AIRFLOW_INSTALL_VERSION===${INSTALL_AIRFLOW_VERSION}"
+        )
+        export AIRFLOW_VERSION="${INSTALL_AIRFLOW_VERSION}"
+        add_build_args_for_remote_install
+    else
+        # When no airflow version/reference is specified, production image is built from local sources
+        EXTRA_DOCKER_PROD_BUILD_FLAGS=(
+        )
+    fi
+
+    export AIRFLOW_PROD_BASE_TAG="${BRANCH_NAME}-python${PYTHON_MAJOR_MINOR_VERSION}"
     export AIRFLOW_PROD_BUILD_IMAGE="${DOCKERHUB_USER}/${DOCKERHUB_REPO}:${AIRFLOW_PROD_BASE_TAG}-build"
     export AIRFLOW_PROD_IMAGE="${DOCKERHUB_USER}/${DOCKERHUB_REPO}:${AIRFLOW_PROD_BASE_TAG}"
-    export AIRFLOW_PROD_IMAGE_DEFAULT="${DOCKERHUB_USER}/${DOCKERHUB_REPO}:${DEFAULT_BRANCH}"
+    export AIRFLOW_PROD_IMAGE_DEFAULT="${DOCKERHUB_USER}/${DOCKERHUB_REPO}:${BRANCH_NAME}"
     export PYTHON_BASE_IMAGE="python:${PYTHON_MAJOR_MINOR_VERSION}-slim-buster"
     if [[ "${DEFAULT_PYTHON_MAJOR_MINOR_VERSION}" == "${PYTHON_MAJOR_MINOR_VERSION}" ]]; then
         export DEFAULT_IMAGE="${AIRFLOW_PROD_IMAGE_DEFAULT}"
@@ -664,7 +684,7 @@ function prepare_prod_build() {
     export ADDITIONAL_PYTHON_DEPS="${ADDITIONAL_PYTHON_DEPS:=""}"
     export AIRFLOW_IMAGE="${AIRFLOW_PROD_IMAGE}"
 
-    if [[ ${ENABLE_REGISTRY_CACHE="false"} == "true" ]]; then
+    if [[ ${USE_GITHUB_REGISTRY="false"} == "true" ]]; then
         if [[ ${CACHE_REGISTRY_PASSWORD:=} != "" ]]; then
             echo "${CACHE_REGISTRY_PASSWORD}" | docker login \
                 --username "${CACHE_REGISTRY_USERNAME}" \
@@ -686,26 +706,8 @@ function prepare_prod_build() {
     AIRFLOW_KUBERNETES_IMAGE_TAG=$(echo "${AIRFLOW_KUBERNETES_IMAGE}" | cut -f 2 -d ":")
     export AIRFLOW_KUBERNETES_IMAGE_TAG
 
-    if [[ "${INSTALL_AIRFLOW_REFERENCE:=}" != "" ]]; then
-        # When --install-airflow-reference is used then the image is build from github tag
-        EXTRA_DOCKER_PROD_BUILD_FLAGS=(
-            "--build-arg" "AIRFLOW_INSTALL_SOURCES=https://github.com/apache/airflow/archive/${INSTALL_AIRFLOW_REFERENCE}.tar.gz#egg=apache-airflow"
-        )
-        export AIRFLOW_VERSION="${INSTALL_AIRFLOW_REFERENCE}"
-        add_build_args_for_remote_install
-    elif [[ "${INSTALL_AIRFLOW_VERSION:=}" != "" ]]; then
-        # When --install-airflow-version is used then the image is build from PIP package
-        EXTRA_DOCKER_PROD_BUILD_FLAGS=(
-            "--build-arg" "AIRFLOW_INSTALL_SOURCES=apache-airflow"
-            "--build-arg" "AIRFLOW_INSTALL_VERSION===${INSTALL_AIRFLOW_VERSION}"
-        )
-        export AIRFLOW_VERSION="${INSTALL_AIRFLOW_VERSION}"
-        add_build_args_for_remote_install
-    else
-        # When no airflow version/reference is specified, production image is built from local sources
-        EXTRA_DOCKER_PROD_BUILD_FLAGS=(
-        )
-    fi
+    AIRFLOW_BRANCH_FOR_PYPI_PRELOADING="${BRANCH_NAME}"
+
     go_to_airflow_sources
 }
 
@@ -745,6 +747,7 @@ function build_prod_image() {
         --build-arg PYTHON_BASE_IMAGE="${PYTHON_BASE_IMAGE}" \
         --build-arg PYTHON_MAJOR_MINOR_VERSION="${PYTHON_MAJOR_MINOR_VERSION}" \
         --build-arg AIRFLOW_VERSION="${AIRFLOW_VERSION}" \
+        --build-arg AIRFLOW_BRANCH="${AIRFLOW_BRANCH_FOR_PYPI_PRELOADING}" \
         --build-arg AIRFLOW_EXTRAS="${AIRFLOW_EXTRAS}" \
         --build-arg ADDITIONAL_AIRFLOW_EXTRAS="${ADDITIONAL_AIRFLOW_EXTRAS}" \
         --build-arg ADDITIONAL_PYTHON_DEPS="${ADDITIONAL_PYTHON_DEPS}" \
@@ -759,6 +762,7 @@ function build_prod_image() {
         --build-arg ADDITIONAL_AIRFLOW_EXTRAS="${ADDITIONAL_AIRFLOW_EXTRAS}" \
         --build-arg ADDITIONAL_PYTHON_DEPS="${ADDITIONAL_PYTHON_DEPS}" \
         --build-arg AIRFLOW_VERSION="${AIRFLOW_VERSION}" \
+        --build-arg AIRFLOW_BRANCH="${AIRFLOW_BRANCH_FOR_PYPI_PRELOADING}" \
         --build-arg AIRFLOW_EXTRAS="${AIRFLOW_EXTRAS}" \
         "${DOCKER_CACHE_PROD_DIRECTIVE[@]}" \
         -t "${AIRFLOW_PROD_IMAGE}" \
