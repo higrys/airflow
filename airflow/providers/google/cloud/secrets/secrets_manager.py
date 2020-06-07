@@ -18,19 +18,10 @@
 """
 Objects relating to sourcing connections from GCP Secrets Manager
 """
-import re
 from typing import Optional
 
-from cached_property import cached_property
-from google.api_core.exceptions import NotFound
-from google.api_core.gapic_v1.client_info import ClientInfo
-from google.cloud.secretmanager_v1 import SecretManagerServiceClient
-
-from airflow import version
 from airflow.exceptions import AirflowException
-from airflow.providers.google.cloud.utils.credentials_provider import (
-    _get_scopes, get_credentials_and_project_id,
-)
+from airflow.providers.google.cloud.utils.secrets_client import SecretsClient
 from airflow.secrets import BaseSecretsBackend
 from airflow.utils.log.logging_mixin import LoggingMixin
 
@@ -63,9 +54,11 @@ class CloudSecretsManagerBackend(BaseSecretsBackend, LoggingMixin):
     :type connections_prefix: str
     :param variables_prefix: Specifies the prefix of the secret to read to get Variables.
     :type variables_prefix: str
-    :param gcp_key_path: Path to GCP Credential JSON file;
+    :param gcp_key_path: Path to GCP Credential JSON file. Mutually exclusive with gcp_keyfile_dict.
         use default credentials in the current environment if not provided.
     :type gcp_key_path: str
+    :param gcp_keyfile_dict: Dictionary of keyfile parameters. Mutually exclusive with gcp_key_path.
+    :type gcp_keyfile_dict: dict
     :param gcp_scopes: Comma-separated string containing GCP scopes
     :type gcp_scopes: str
     :param sep: separator used to concatenate connections_prefix and conn_id. Default: "-"
@@ -75,6 +68,7 @@ class CloudSecretsManagerBackend(BaseSecretsBackend, LoggingMixin):
         self,
         connections_prefix: str = "airflow-connections",
         variables_prefix: str = "airflow-variables",
+        gcp_keyfile_dict: Optional[dict] = None,
         gcp_key_path: Optional[str] = None,
         gcp_scopes: Optional[str] = None,
         sep: str = "-",
@@ -83,6 +77,7 @@ class CloudSecretsManagerBackend(BaseSecretsBackend, LoggingMixin):
         super().__init__(**kwargs)
         self.connections_prefix = connections_prefix
         self.variables_prefix = variables_prefix
+        self.gcp_keyfile_dict = gcp_keyfile_dict
         self.gcp_key_path = gcp_key_path
         self.gcp_scopes = gcp_scopes
         self.sep = sep
@@ -93,26 +88,13 @@ class CloudSecretsManagerBackend(BaseSecretsBackend, LoggingMixin):
                 "`connections_prefix`, `variables_prefix` and `sep` should "
                 f"follows that pattern {SECRET_ID_PATTERN}"
             )
+        self.client = SecretsClient(gcp_key_path=gcp_key_path,
+                                    gcp_keyfile_dict=gcp_keyfile_dict,
+                                    gcp_scopes=gcp_scopes)
 
     def _is_valid_prefix_and_sep(self) -> bool:
         prefix = self.connections_prefix + self.sep
-        return bool(re.match(SECRET_ID_PATTERN, prefix))
-
-    @cached_property
-    def client(self) -> SecretManagerServiceClient:
-        """
-        Create an authenticated KMS client
-        """
-        scopes = _get_scopes(self.gcp_scopes)
-        self.credentials, self.project_id = get_credentials_and_project_id(
-            key_path=self.gcp_key_path,
-            scopes=scopes
-        )
-        _client = SecretManagerServiceClient(
-            credentials=self.credentials,
-            client_info=ClientInfo(client_library_version='airflow_v' + version.version)
-        )
-        return _client
+        return SecretsClient.is_valid_secret_name(prefix)
 
     def get_conn_uri(self, conn_id: str) -> Optional[str]:
         """
@@ -134,7 +116,7 @@ class CloudSecretsManagerBackend(BaseSecretsBackend, LoggingMixin):
 
     def _get_secret(self, path_prefix: str, secret_id: str) -> Optional[str]:
         """
-        Get secret value from Parameter Store.
+        Get secret value from Secret_manager based on prefix.
 
         :param path_prefix: Prefix for the Path to get Secret
         :type path_prefix: str
@@ -142,15 +124,4 @@ class CloudSecretsManagerBackend(BaseSecretsBackend, LoggingMixin):
         :type secret_id: str
         """
         secret_id = self.build_path(path_prefix, secret_id, self.sep)
-        # always return the latest version of the secret
-        secret_version = "latest"
-        name = self.client.secret_version_path(self.project_id, secret_id, secret_version)
-        try:
-            response = self.client.access_secret_version(name)
-            value = response.payload.data.decode('UTF-8')
-            return value
-        except NotFound:
-            self.log.error(
-                "GCP API Call Error (NotFound): Secret ID %s not found.", secret_id
-            )
-            return None
+        return self.client.get_secret(secret_id=secret_id)
