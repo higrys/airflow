@@ -21,8 +21,6 @@
 echo
 echo "Starting the tests with those pytest arguments:" "${@}"
 echo
-pwd
-ls -la
 set +e
 
 pytest "${@}"
