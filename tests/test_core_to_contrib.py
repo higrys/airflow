@@ -24,7 +24,7 @@ from unittest import TestCase, mock
 
 from parameterized import parameterized
 
-HOOK = [
+HOOKS = [
     (
         "airflow.providers.apache.cassandra.hooks.cassandra.CassandraHook",
         "airflow.contrib.hooks.cassandra_hook.CassandraHook",
@@ -424,7 +424,7 @@ HOOK = [
     ),
 ]
 
-OPERATOR = [
+OPERATORS = [
     (
         "airflow.providers.google.cloud.operators.adls_to_gcs.ADLSToGCSOperator",
         "airflow.contrib.operators.adls_to_gcs.AdlsToGoogleCloudStorageOperator",
@@ -1519,7 +1519,7 @@ SECRETS = [
     ),
 ]
 
-SENSOR = [
+SENSORS = [
     (
         "airflow.providers.apache.cassandra.sensors.record.CassandraRecordSensor",
         "airflow.contrib.sensors.cassandra_record_sensor.CassandraRecordSensor",
@@ -1744,11 +1744,15 @@ PROTOCOLS = [
     ),
 ]
 
-ALL = HOOK + OPERATOR + SECRETS + SENSOR + PROTOCOLS
+TRANSFERS = [
+
+]
+
+ALL = HOOKS + OPERATORS + SECRETS + SENSORS + PROTOCOLS + TRANSFERS
 
 RENAMED_HOOKS = [
     (old_class, new_class)
-    for old_class, new_class in HOOK + OPERATOR + SECRETS + SENSOR
+    for old_class, new_class in HOOKS + OPERATORS + SECRETS + SENSORS
     if old_class.rpartition(".")[2] != new_class.rpartition(".")[2]
 ]
 

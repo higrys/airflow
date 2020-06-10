@@ -42,6 +42,15 @@ Release: {{ RELEASE_NO_LEADING_ZEROS }}
         - [Moved operators](#moved-operators)
     {%- endif %}
 {%- endif %}
+{%- if NEW_TRANSFERS or MOVED_TRANSFERS %}
+    - [Transfer operators](#transfers)
+    {%- if NEW_TRASNFERS %}
+        - [New transfer operators](#new-transfers)
+    {%- endif %}
+    {%- if MOVED_TRANSFERS %}
+        - [Moved transfer operators](#moved-transfers)
+    {%- endif %}
+{%- endif %}
 {%- if NEW_SENSORS or MOVED_SENSORS %}
     - [Sensors](#sensors)
     {%- if NEW_SENSORS %}

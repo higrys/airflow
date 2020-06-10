@@ -36,7 +36,7 @@ from backport_packages.import_all_provider_classes import import_all_provider_cl
 from setup import PROVIDERS_REQUIREMENTS
 from setuptools import Command, find_packages, setup as setuptools_setup
 
-from tests.test_core_to_contrib import HOOK, OPERATOR, PROTOCOLS, SECRETS, SENSOR
+from tests.test_core_to_contrib import HOOKS, OPERATORS, PROTOCOLS, SECRETS, SENSORS, TRANSFERS
 
 # noinspection DuplicatedCode
 logger = logging.getLogger(__name__)  # noqa
@@ -48,6 +48,25 @@ MY_DIR_PATH = os.path.dirname(__file__)
 SOURCE_DIR_PATH = os.path.abspath(os.path.join(MY_DIR_PATH, os.pardir))
 AIRFLOW_PATH = os.path.join(SOURCE_DIR_PATH, "airflow")
 PROVIDERS_PATH = os.path.join(AIRFLOW_PATH, "providers")
+
+
+OPERATORS_PATTERN = r".*Operator$"
+SENSORS_PATTERN = r".*Sensor$"
+HOOKS_PATTERN = r".*Hook$"
+PROTOCOLS_PATTERN = r".*Protocol$"
+SECRETS_PATTERN = r".*Backend$"
+TRANSFERS_PATTERN = r".*To.*Operator$"
+
+ALL_PATTERNS = {
+    OPERATORS_PATTERN,
+    SENSORS_PATTERN,
+    HOOKS_PATTERN,
+    PROTOCOLS_PATTERN,
+    SECRETS_PATTERN,
+    TRANSFERS_PATTERN
+}
+
+WRONG_TRANSFERS_PATTERNS = {r".*Transfer.*$"}
 
 
 def get_source_airflow_folder() -> str:
@@ -115,11 +134,12 @@ import setup  # From AIRFLOW_SOURCES/setup.py # noqa  # isort:skip
 
 DEPENDENCIES_JSON_FILE = os.path.join(PROVIDERS_PATH, "dependencies.json")
 
-MOVED_OPERATORS_DICT = {value[0]: value[1] for value in OPERATOR}
-MOVED_SENSORS_DICT = {value[0]: value[1] for value in SENSOR}
-MOVED_HOOKS_DICT = {value[0]: value[1] for value in HOOK}
+MOVED_OPERATORS_DICT = {value[0]: value[1] for value in OPERATORS}
+MOVED_SENSORS_DICT = {value[0]: value[1] for value in SENSORS}
+MOVED_HOOKS_DICT = {value[0]: value[1] for value in HOOKS}
 MOVED_PROTOCOLS_DICT = {value[0]: value[1] for value in PROTOCOLS}
 MOVED_SECRETS_DICT = {value[0]: value[1] for value in SECRETS}
+MOVED_TRANSFERS_DICT = {value[0]: value[1] for value in TRANSFERS}
 
 
 def get_pip_package_name(provider_package_id: str) -> str:
@@ -348,33 +368,39 @@ def is_bigquery_class(imported_name: str) -> bool:
     return is_bigquery_non_dts_module(module_name=imported_name.split(".")[-2])
 
 
-def has_expected_string_in_name(the_class: Type, expected_string: Optional[str]) -> bool:
+def package_name_matches(the_class: Type, expected_pattern: Optional[str]) -> bool:
     """
-    In case expected_string is different than None then it checks for presence of the string in the
-    imported_name.
-    :param the_class: name of the imported object
-    :param expected_string: string to expect
-    :return: true if the expected_string is None or the expected string is found in the imported name
+    In case expected_pattern is set, it checks if the package name matches the pattern.
+    .
+    :param the_class: imported class
+    :param expected_pattern: the pattern that should match the package
+    :return: true if the expected_pattern is None or the pattern matches the package
     """
-    return expected_string is None or expected_string in the_class.__module__
+    return expected_pattern is None or re.match(expected_pattern, the_class.__module__)
 
 
-def find_all_subclasses(imported_classes: List[str],
-                        expected_package: str,
-                        expected_ancestor: Type,
-                        expected_string: Optional[str] = None,
-                        exclude_class_type=None) -> Set[str]:
+def find_all_classes(imported_classes: List[str],
+                     expected_package: str,
+                     expected_ancestor: Type,
+                     expected_class_name_pattern: str,
+                     unexpected_class_name_patterns: Set[str],
+                     expected_package_name_pattern: str,
+                     exclude_class_type=None,
+                     ) -> Tuple[Set[str], List[Tuple[type, str]]]:
     """
     Returns set of classes containing all subclasses in package specified.
 
     :param imported_classes: classes imported from providers
     :param expected_package: full package name where to look for the classes
     :param expected_ancestor: type of the object the method looks for
-    :param expected_string: this string is expected to appear in the package name
-    :param exclude_class_type: exclude class of this type (Sensor are also Operators so they should be
-           excluded from the Operator list)
+    :param expected_class_name_pattern: regexp of class name pattern to expect)
+    :param unexpected_class_name_patterns: set of regexp of class name pattern that are not expected)
+    :param expected_package_name_pattern: this string is expected to appear in the package name
+    :param exclude_class_type: exclude class of this type (Sensor are also Operators so
+           they should be excluded from the Operator list)
     """
-    subclasses = set()
+    found_classes: Set[str] = set()
+    wrong_classes: List[Tuple[type, str]] = []
     for imported_name in imported_classes:
         module, class_name = imported_name.rsplit(".", maxsplit=1)
         the_class = getattr(importlib.import_module(module), class_name)
@@ -382,12 +408,30 @@ def find_all_subclasses(imported_classes: List[str],
             and not is_example_dag(imported_name=imported_name) \
             and is_from_the_expected_package(the_class=the_class, expected_package=expected_package) \
             and is_imported_from_same_module(the_class=the_class, imported_name=imported_name) \
-            and has_expected_string_in_name(the_class=the_class, expected_string=expected_string) \
             and inherits_from(the_class=the_class, expected_ancestor=expected_ancestor) \
             and not inherits_from(the_class=the_class, expected_ancestor=exclude_class_type) \
                 and not is_bigquery_class(imported_name=imported_name):
-            subclasses.add(imported_name)
-    return subclasses
+            if not package_name_matches(the_class=the_class,
+                                        expected_pattern=expected_package_name_pattern):
+                wrong_classes.append(
+                    (the_class, f"The class {the_class} is in a wrong package. "
+                                f"It should be in the package matching {expected_package_name_pattern}"))
+
+            if not re.match(expected_class_name_pattern, class_name):
+                wrong_classes.append(
+                    (the_class, f"The class name {class_name} is wrong. "
+                                f"It should match {expected_class_name_pattern}"))
+                continue
+            if unexpected_class_name_patterns:
+                for unexpected_class_name_pattern in unexpected_class_name_patterns:
+                    if re.match(unexpected_class_name_pattern, class_name):
+                        wrong_classes.append(
+                            (the_class,
+                             f"The class name {class_name} is wrong. "
+                             f"It should not match {unexpected_class_name_pattern}"))
+                    continue
+            found_classes.add(imported_name)
+    return found_classes, wrong_classes
 
 
 def get_new_and_moved_classes(classes: Set[str],
@@ -482,6 +526,18 @@ def convert_moved_objects_to_table(class_dict: Dict[str, str],
     return tabulate(table, headers=headers, tablefmt="pipe")
 
 
+def print_wrong_naming(class_type: str, wrong_classes: List[Tuple[type, str]]):
+    """
+    Prints wrong classes of a given type if there are any
+    :param class_type: type of the class to print
+    :param wrong_classes: list of wrong classes
+    """
+    if wrong_classes:
+        print(f"\nThere are wrongly named classes of type {class_type}:\n", file=sys.stderr)
+        for class_type, message in wrong_classes:
+            print(f"{class_type}: {message}", file=sys.stderr)
+
+
 def get_package_class_summary(full_package_name: str, imported_classes: List[str]) -> Dict[str, Any]:
     """
     Gets summary of the package in the form of dictionary containing all types of classes
@@ -494,37 +550,70 @@ def get_package_class_summary(full_package_name: str, imported_classes: List[str
     from airflow.hooks.base_hook import BaseHook
     from airflow.models.baseoperator import BaseOperator
     from typing_extensions import Protocol
-    operators = find_all_subclasses(
+
+    operators, wrong_operators = find_all_classes(
         imported_classes=imported_classes,
         expected_package=full_package_name,
         expected_ancestor=BaseOperator,
-        expected_string=".operators.",
+        expected_class_name_pattern=OPERATORS_PATTERN,
+        unexpected_class_name_patterns=ALL_PATTERNS - {OPERATORS_PATTERN},
+        expected_package_name_pattern=r".*\.operators\..*",
         exclude_class_type=BaseSensorOperator)
-    sensors = find_all_subclasses(
+    sensors, wrong_sensors = find_all_classes(
         imported_classes=imported_classes,
         expected_package=full_package_name,
         expected_ancestor=BaseSensorOperator,
-        expected_string='.sensors.')
-    hooks = find_all_subclasses(
+        expected_class_name_pattern=SENSORS_PATTERN,
+        unexpected_class_name_patterns=ALL_PATTERNS - {OPERATORS_PATTERN, SENSORS_PATTERN},
+        expected_package_name_pattern=r".*\.sensors\..*")
+    hooks, wrong_hooks = find_all_classes(
         imported_classes=imported_classes,
         expected_package=full_package_name,
         expected_ancestor=BaseHook,
-        expected_string='.hooks.')
-    protocols = find_all_subclasses(
+        expected_class_name_pattern=HOOKS_PATTERN,
+        unexpected_class_name_patterns=ALL_PATTERNS - {HOOKS_PATTERN},
+        expected_package_name_pattern=r".*\.hooks\..*")
+    protocols, wrong_protocols = find_all_classes(
         imported_classes=imported_classes,
         expected_package=full_package_name,
-        expected_ancestor=Protocol,
-    )
-    secrets = find_all_subclasses(
+        expected_package_name_pattern=r".*\.protocols\..*",
+        expected_class_name_pattern=PROTOCOLS_PATTERN,
+        unexpected_class_name_patterns=ALL_PATTERNS - {PROTOCOLS_PATTERN},
+        expected_ancestor=Protocol)
+    secrets, wrong_secrets = find_all_classes(
         imported_classes=imported_classes,
         expected_package=full_package_name,
+        expected_package_name_pattern=r".*\.secrets\..*",
+        expected_class_name_pattern=SECRETS_PATTERN,
+        unexpected_class_name_patterns=ALL_PATTERNS - {SECRETS_PATTERN},
         expected_ancestor=BaseSecretsBackend,
     )
+    transfers, wrong_transfers = find_all_classes(
+        imported_classes=imported_classes,
+        expected_package=full_package_name,
+        expected_package_name_pattern=r".*\.transfers\..*",
+        expected_class_name_pattern=TRANSFERS_PATTERN,
+        unexpected_class_name_patterns=ALL_PATTERNS.union(WRONG_TRANSFERS_PATTERNS) - {TRANSFERS_PATTERN},
+        expected_ancestor=BaseOperator,
+    )
+
+    print_wrong_naming("Operators", wrong_operators)
+    print_wrong_naming("Sensors", wrong_sensors)
+    print_wrong_naming("Hooks", wrong_hooks)
+    print_wrong_naming("Protocols", wrong_protocols)
+    print_wrong_naming("Secrets", wrong_secrets)
+    print_wrong_naming("Transfers", wrong_transfers)
+
+    if any([wrong_operators, wrong_sensors, wrong_hooks, wrong_protocols, wrong_secrets, wrong_transfers]):
+        print("\nERROR! There are some wrongly named  classes! EXITING.")
+        sys.exit(1)
+
     new_operators, moved_operators = get_new_and_moved_classes(operators, MOVED_OPERATORS_DICT)
     new_sensors, moved_sensors = get_new_and_moved_classes(sensors, MOVED_SENSORS_DICT)
     new_hooks, moved_hooks = get_new_and_moved_classes(hooks, MOVED_HOOKS_DICT)
     new_protocols, moved_protocols = get_new_and_moved_classes(protocols, MOVED_PROTOCOLS_DICT)
     new_secrets, moved_secrets = get_new_and_moved_classes(secrets, MOVED_SECRETS_DICT)
+    new_transfers, moved_transfers = get_new_and_moved_classes(transfers, MOVED_TRANSFERS_DICT)
     class_summary = {
         "NEW_OPERATORS": new_operators,
         "MOVED_OPERATORS": moved_operators,
@@ -536,12 +625,14 @@ def get_package_class_summary(full_package_name: str, imported_classes: List[str
         "MOVED_PROTOCOLS": moved_protocols,
         "NEW_SECRETS": new_secrets,
         "MOVED_SECRETS": moved_secrets,
+        "NEW_TRANSFERS": new_transfers,
+        "MOVED_TRANSFERS": moved_transfers,
         "OPERATORS": operators,
         "HOOKS": hooks,
         "SENSORS": sensors,
         "PROTOCOLS": protocols,
         "SECRETS": secrets,
-
+        "TRANSFERS" : transfers,
     }
     for from_name, to_name, object_type in [
         ("NEW_OPERATORS", "NEW_OPERATORS_TABLE", "operators"),
@@ -549,6 +640,7 @@ def get_package_class_summary(full_package_name: str, imported_classes: List[str
         ("NEW_HOOKS", "NEW_HOOKS_TABLE", "hooks"),
         ("NEW_PROTOCOLS", "NEW_PROTOCOLS_TABLE", "protocols"),
         ("NEW_SECRETS", "NEW_SECRETS_TABLE", "secrets"),
+        ("NEW_TRANSFERS", "NEW_TRANSFERS_TABLE", "transfers"),
     ]:
         class_summary[to_name] = convert_new_classes_to_table(class_summary[from_name],
                                                               full_package_name,
@@ -559,6 +651,7 @@ def get_package_class_summary(full_package_name: str, imported_classes: List[str
         ("MOVED_HOOKS", "MOVED_HOOKS_TABLE", "hooks"),
         ("MOVED_PROTOCOLS", "MOVED_PROTOCOLS_TABLE", "protocols"),
         ("MOVED_SECRETS", "MOVED_SECRETS_TABLE", "protocols"),
+        ("MOVED_TRANSFERS", "MOVED_TRANSFERS_TABLE", "transfers"),
     ]:
         class_summary[to_name] = convert_moved_objects_to_table(class_summary[from_name],
                                                                 full_package_name,
@@ -866,6 +959,7 @@ EXPECTED_SUFFIXES: Dict[str, str] = {
     "SENSORS": "Sensor",
     "PROTOCOLS": "Protocol",
     "SECRETS": "Backend",
+    "TRANSFERS": "Operator",
 }
 
 

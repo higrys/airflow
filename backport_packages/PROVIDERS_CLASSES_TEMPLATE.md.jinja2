@@ -37,6 +37,19 @@ All classes in Airflow 2.0 are in `{{FULL_PACKAGE_NAME}}` package.
 {% endif %}
 {% endif %}
 
+{% if NEW_TRANSFERS %}
+    ### New transfer operators
+
+    {{NEW_TRANSFERS_TABLE}}
+{% endif %}
+
+{% if MOVED_TRANSFERS %}
+    ### Moved transfer operators
+
+    {{MOVED_TRASNFERS_TABLE}}
+{% endif %}
+{% endif %}
+
 {% if NEW_SENSORS or MOVED_SENSORS %}
 ## Sensors
 
