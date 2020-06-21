@@ -336,7 +336,6 @@ For your testing you manage Kind cluster with ``kind-cluster`` breeze command:
 
     ./breeze kind-cluster [ start | stop | recreate | status ]
 
-
 The command allows you to start/stop/recreate/status Kind Kubernetes cluster
 in your docker engine as well as deploy airflow to use it for testing (with ``deploy`` command).
 
@@ -360,7 +359,6 @@ Deploying Airflow to the Kubernetes cluster created is also done via ``kind-clus
 .. code-block:: bash
 
     ./breeze kind-cluster deploy
-
 
 The deploy commands performs tthose steps:
 
@@ -485,23 +483,23 @@ Those Kubernetes tests require virtualenv to be created locally with airflow ins
 The virtualenv required will be created automatically when the scripts are run.
 
 
-Either run all the tests:
-
+4a) You can run all the tests
 
 .. code-block:: bash
 
     ./breeze kind-cluster test
 
 
-Or enter the interactive virtualenv (the environment is in ``.build/.kubernetes_venv`` folder:
+4b) You can enter an interactive shell to run tests one-by-one
 
+This prepares and enters the virtualenv in ``.build/.kubernetes_venv`` folder:
 
 .. code-block:: bash
 
-     ./scripts/ci/ci_run_kubernetes_tests.sh -i
+    ./breeze kind-cluster shell
 
 
-Once you enter the environment you get this information:
+Once you enter the environment you receive this information:
 
 
 .. code-block:: bash
@@ -513,12 +511,14 @@ Once you enter the environment you get this information:
 
     The webserver is available at http://localhost:30809/
 
-    User/password: airflow/airflow
+    User/password: admin/admin
 
     You are entering the virtualenv now. Type exit to exit back to the original shell
 
 
-You can iterate with tests while you are in the virtualenv:
+You can iterate with tests while you are in the virtualenv. All the tests requiring kubernetes cluster
+are in "kubernetes_tests" folder. You can add extra ``pytest`` parameters then (for example ``-s`` will
+print output generated test logs and print statements to the terminal immediately.
 
 
 .. code-block:: bash
@@ -529,7 +529,7 @@ You can iterate with tests while you are in the virtualenv:
 You can modify the tests or KubernetesPodOperator and re-run them without re-deploying
 airflow to KinD cluster.
 
-However when you change the Airflow Kubernetes executor implementation you need to redeploy
+However when you change  Airflow Kubernetes executor implementation you need to redeploy
 Airflow to the cluster.
 
 .. code-block:: bash

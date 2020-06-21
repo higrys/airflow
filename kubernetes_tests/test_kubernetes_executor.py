@@ -25,7 +25,7 @@ import requests.exceptions
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
-KUBERNETES_HOST_PORT = (os.environ.get('CLUSTER_HOST') or "localhost") + ":30809"
+KUBERNETES_HOST_PORT = (os.environ.get('CLUSTER_HOST') or "localhost") + ":8080"
 
 print()
 print(f"Cluster host/port used: ${KUBERNETES_HOST_PORT}")
@@ -198,12 +198,12 @@ class TestKubernetesExecutor(unittest.TestCase):
                           execution_date=execution_date,
                           dag_id=dag_id,
                           task_id='start_task',
-                          expected_final_state='success', timeout=100)
+                          expected_final_state='success', timeout=300)
 
         self.ensure_dag_expected_state(host=host,
                                        execution_date=execution_date,
                                        dag_id=dag_id,
-                                       expected_final_state='success', timeout=100)
+                                       expected_final_state='success', timeout=300)
 
     def test_integration_run_dag_with_scheduler_failure(self):
         host = KUBERNETES_HOST_PORT
@@ -220,18 +220,18 @@ class TestKubernetesExecutor(unittest.TestCase):
                           execution_date=execution_date,
                           dag_id=dag_id,
                           task_id='start_task',
-                          expected_final_state='success', timeout=200)
+                          expected_final_state='success', timeout=300)
 
         self.monitor_task(host=host,
                           execution_date=execution_date,
                           dag_id=dag_id,
                           task_id='other_namespace_task',
-                          expected_final_state='success', timeout=200)
+                          expected_final_state='success', timeout=300)
 
         self.ensure_dag_expected_state(host=host,
                                        execution_date=execution_date,
                                        dag_id=dag_id,
-                                       expected_final_state='success', timeout=100)
+                                       expected_final_state='success', timeout=300)
 
         self.assertEqual(self._num_pods_in_namespace('test-namespace'),
                          0,

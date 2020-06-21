@@ -1194,7 +1194,7 @@ This is the current syntax for  `./breeze <./breeze>`_:
         to the cluster so you can also pass appropriate build image flags that will influence
         rebuilding the production image. Operation is one of:
 
-                 start stop restart status deploy test
+                 start stop restart status deploy test shell
 
   Flags:
 

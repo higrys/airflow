@@ -221,11 +221,11 @@ function initialize_common_environment {
     # Version of Kubernetes to run
     export KUBERNETES_VERSION="${KUBERNETES_VERSION:="v1.15.3"}"
 
-    # Name of the KinD cluster to connect to
-    export KIND_CLUSTER_NAME=${KIND_CLUSTER_NAME:="airflow-python-${PYTHON_MAJOR_MINOR_VERSION}-${KUBERNETES_VERSION}"}
+    # folder with DAGs to embed into production image
+    export EMBEDDED_DAGS=${EMBEDDED_DAGS:="empty"}
 
-    # Name of the KinD cluster to connect to when referred to via kubectl
-    export KUBECTL_CLUSTER_NAME=kind-${KIND_CLUSTER_NAME}
+    # Namespace where airflow is installed via helm
+    export HELM_AIRFLOW_NAMESPACE="airflow"
 
 }
 

@@ -71,6 +71,7 @@ else
 fi
 
 get_ci_environment
+initialize_kind_variables
 
 cd "${AIRFLOW_SOURCES}" || exit 1
 
@@ -100,10 +101,11 @@ if [[ ${INTERACTIVE} == "true" ]]; then
     echo
     echo "The webserver is available at http://localhost:30809/"
     echo
-    echo "User/password: airflow/airflow"
+    echo "User/password: admin/admin"
     echo
     echo "You are entering the virtualenv now. Type exit to exit back to the original shell"
     echo
+    kubectl config set-context --current --namespace=airflow
     exec "${SHELL}"
 else
     pytest "${PYTEST_ARGS[@]}" "${TESTS[@]}"

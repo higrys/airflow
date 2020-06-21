@@ -2031,6 +2031,8 @@ function run_build_command {
               echo "Deploys Airflow to KinD cluster"
             elif [[ ${KIND_CLUSTER_OPERATION} == "test" ]] ; then
               echo "Run Kubernetes tests with the KinD cluster "
+            elif [[ ${KIND_CLUSTER_OPERATION} == "shell" ]] ; then
+              echo "Enter an interactive shell for kubernetes testing"
             else
               echo "ERROR: Unknown Kind Kubernetes cluster operation: '${KIND_CLUSTER_OPERATION}'"
               echo
@@ -2122,7 +2124,8 @@ function run_breeze_command {
             setup_autocomplete
             ;;
         manage_kind_cluster)
-            check_kind_and_kubectl_are_installed
+            make_sure_kubernetes_tools_are_installed
+            initialize_kind_variables
             perform_kind_cluster_operation "${KIND_CLUSTER_OPERATION}"
             ;;
         build_docs)
