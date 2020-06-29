@@ -16,8 +16,10 @@
 # under the License.
 import os
 import re
+import subprocess
 import time
 import unittest
+from datetime import datetime
 from subprocess import check_call, check_output
 
 import requests
@@ -33,6 +35,17 @@ print()
 
 
 class TestKubernetesExecutor(unittest.TestCase):
+
+    @staticmethod
+    def _describe_pods_namespace(namespace: str):
+        command = ["kubectl", "describe", "pod", "--namespace", namespace]
+        print("=" * 80)
+        print("Datetime: {}".format(datetime.utcnow()))
+        print("=" * 80)
+        print("Describing pods for namespace {} at {}".format(namespace, datetime.utcnow()))
+        print("-" * 80)
+        subprocess.call(command)
+        print("=" * 80)
 
     @staticmethod
     def _num_pods_in_namespace(namespace):
@@ -79,7 +92,6 @@ class TestKubernetesExecutor(unittest.TestCase):
         # Wait some time for the operator to complete
         while tries < max_tries:
             time.sleep(5)
-
             # Trigger a new dagrun
             try:
                 get_string = \
@@ -99,6 +111,8 @@ class TestKubernetesExecutor(unittest.TestCase):
 
                 if state == expected_final_state:
                     break
+                self._describe_pods_namespace("airflow")
+                self._describe_pods_namespace("default")
                 tries += 1
             except requests.exceptions.ConnectionError as e:
                 check_call(["echo", "api call failed. trying again. error {}".format(e)])
@@ -115,7 +129,6 @@ class TestKubernetesExecutor(unittest.TestCase):
         # Wait some time for the operator to complete
         while tries < max_tries:
             time.sleep(5)
-
             get_string = \
                 f'http://{host}/api/experimental/dags/{dag_id}/' \
                 f'dag_runs/{execution_date}'
@@ -132,6 +145,9 @@ class TestKubernetesExecutor(unittest.TestCase):
 
             if state == expected_final_state:
                 break
+            self._describe_pods_namespace("airflow")
+            self._describe_pods_namespace("default")
+
             tries += 1
 
         self.assertEqual(state, expected_final_state)
