@@ -1,0 +1,135 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+#
+---
+name: Tests Kubernetes
+on:
+  schedule:
+    - cron: '10 2 * * *'
+  push:
+    branches: ['master', 'v1-10-test', 'v1-10-stable']
+  pull_request:
+    branches: ['master', 'v1-10-test', 'v1-10-stable']
+
+env:
+
+  MOUNT_LOCAL_SOURCES: "false"
+  FORCE_ANSWER_TO_QUESTIONS: "yes"
+  SKIP_CHECK_REMOTE_IMAGE: "true"
+  SKIP_CI_IMAGE_CHECK: "true"
+  DB_RESET: "true"
+  VERBOSE: "true"
+  UPGRADE_TO_LATEST_REQUIREMENTS: "false"
+  PYTHON_MAJOR_MINOR_VERSION: 3.6
+  USE_GITHUB_REGISTRY: "true"
+  CACHE_IMAGE_PREFIX: ${{ github.repository }}
+  CACHE_REGISTRY_USERNAME: ${{ github.actor }}
+  CACHE_REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+
+jobs:
+
+  helm-tests:
+    timeout-minutes: 5
+    name: "Checks: Helm tests"
+    runs-on: ubuntu-latest
+    env:
+      CI_JOB_TYPE: "Tests"
+    steps:
+      - uses: actions/checkout@master
+      - name: "Helm Tests"
+        run: ./scripts/ci/kubernetes/ci_run_helm_testing.sh
+
+  trigger-tests:
+    timeout-minutes: 10
+    name: "Count changed important files"
+    runs-on: ubuntu-latest
+    outputs:
+      count: ${{ steps.trigger-tests.outputs.count }}
+    steps:
+      - uses: actions/checkout@master
+      - name: "Get count of changed python files"
+        run: |
+          set +e
+          ./scripts/ci/tools/ci_count_changed_files.sh ${GITHUB_SHA} \
+              '^airflow|^.github/workflows|^Dockerfile|^scripts|^chart'
+          echo "::set-output name=count::$?"
+        id: trigger-tests
+
+  tests-kubernetes:
+    timeout-minutes: 80
+    name: "K8s: ${{matrix.kube-mode}} ${{matrix.python-version}} ${{matrix.kubernetes-version}}"
+    runs-on: ubuntu-latest
+    needs: [trigger-tests]
+    strategy:
+      matrix:
+        python-version: [3.6, 3.7]
+        kube-mode:
+          - image
+        kubernetes-version:
+          - "v1.18.2"
+        kind-version:
+          - "v0.8.0"
+        helm-version:
+          - "v3.2.4"
+      fail-fast: false
+    env:
+      BACKEND: postgres
+      TEST_TYPE: ${{ matrix.test-type }}
+      RUN_TESTS: "true"
+      CI_JOB_TYPE: "Tests"
+      SKIP_CI_IMAGE_CHECK: "true"
+      RUNTIME: "kubernetes"
+      ENABLE_KIND_CLUSTER: "true"
+      PYTHON_MAJOR_MINOR_VERSION: "${{ matrix.python-version }}"
+      KUBERNETES_MODE: "${{ matrix.kube-mode }}"
+      KUBERNETES_VERSION: "${{ matrix.kubernetes-version }}"
+      KIND_VERSION: "${{ matrix.kind-version }}"
+      HELM_VERSION: "${{ matrix.helm-version }}"
+    # For pull requests only run tests when important files changed
+    if: needs.trigger-tests.outputs.count != '0' || github.event_name != 'pull_request'
+    steps:
+      - uses: actions/checkout@master
+      - uses: actions/setup-python@v1
+        with:
+          python-version: '3.x'
+      - name: "Free space"
+        run: ./scripts/ci/tools/ci_free_space_on_ci.sh
+      - uses: engineerd/setup-kind@v0.4.0
+        name: Setup Kind Cluster
+        with:
+          version: "${{ matrix.kind-version }}"
+          name: airflow-python-${{matrix.python-version}}-${{matrix.kubernetes-version}}
+          config: "scripts/ci/kubernetes/kind-cluster-conf.yaml"
+      - name: "Deploy app to cluster"
+        run: ./scripts/ci/kubernetes/ci_deploy_app_to_kubernetes.sh
+      - name: Cache virtualenv for kubernetes testing
+        uses: actions/cache@v2
+        env:
+          cache-name: cache-kubernetes-tests-virtualenv-v2
+        with:
+          path: .build/.kubernetes_venv
+          key: "${{ env.cache-name }}-${{ github.job }}-\
+${{ hashFiles('requirements/requirements-python${{matrix.python-version}}.txt') }}"
+      - name: "Tests"
+        run: ./scripts/ci/kubernetes/ci_run_kubernetes_tests.sh
+      - uses: actions/upload-artifact@v2
+        name: Upload KinD logs
+        # Always run this, even if one of th previous steps failed.
+        if: always()
+        with:
+          name: 'kind-logs-${{matrix.kube-mode}}-${{matrix.python-version}}-${{matrix.kubernetes-version}}'
+          path: '/tmp/kind_logs_*'

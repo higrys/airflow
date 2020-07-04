@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -14,17 +15,14 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
----
-name: Cancel
-on: [push, pull_request]
-jobs:
-  cancel:
-    name: 'Cancel Previous Runs'
-    runs-on: ubuntu-latest
-    timeout-minutes: 3
-    steps:
-      - uses: styfle/cancel-workflow-action@0.3.2
-        with:
-          # Fetch via https://api.github.com/repos/apache/airflow/actions/workflows/ci.yml
-          workflow_id: 1029499
-          access_token: ${{ github.token }}
+
+echo "Running helm tests"
+
+CHART_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )/../../../chart/"
+
+echo "Chart directory is $CHART_DIR"
+
+docker run -w /airflow-chart -v "$CHART_DIR":/airflow-chart \
+  --entrypoint /bin/sh \
+  aneeshkj/helm-unittest \
+  -c "helm repo add stable https://kubernetes-charts.storage.googleapis.com; helm dependency update ; helm unittest ."
