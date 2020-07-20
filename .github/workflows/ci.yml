@@ -474,7 +474,8 @@ jobs:
         with:
           ref: ${{ steps.constraint-branch.outputs.branch }}
       - uses: actions/download-artifact@v2
-        path: 'files/'
+        with:
+          path: 'files'
         name: "Get all artifacts (constraints)"
       - name: "Commit changed constraint files"
         run: |
