@@ -92,14 +92,14 @@ parameter to Breeze:
 
 .. code-block:: bash
 
-  ./breeze build-image --python 3.7 --extras=gcp --production-image --install-airflow-version=1.10.9
+  ./breeze build-image --python 3.7 --extras=gcp --production-image --install-airflow-version=1.10.12
 
 This will build the image using command similar to:
 
 .. code-block:: bash
 
-    pip install apache-airflow[sendgrid]==1.10.9 \
-       --constraint https://raw.githubusercontent.com/apache/airflow/v1-10-test/requirements/requirements-python3.7.txt
+    pip install apache-airflow[sendgrid]==1.10.12 \
+  --constraint --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-1.10.12/constraints-3.6.txt"
 
 The requirement files only appeared in version 1.10.10 of airflow so if you install
 an earlier version -  both constraint and requirements should point to 1.10.10 version.
@@ -109,8 +109,8 @@ parameter to Breeze:
 
 .. code-block:: bash
 
-    pip install https://github.com/apache/airflow/archive/<tag>.tar.gz#egg=apache-airflow \
-       --constraint https://raw.githubusercontent.com/apache/airflow/<tag>/requirements/requirements-python3.7.txt
+    pip install "https://github.com/apache/airflow/archive/<tag>.tar.gz#egg=apache-airflow" \
+  --constraint --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-master/constraints-3.6.txt"
 
 Using cache during builds
 =========================
@@ -381,23 +381,15 @@ The following build arguments (``--build-arg`` in docker build command) can be u
 +------------------------------------------+------------------------------------------+------------------------------------------+
 | ``AIRFLOW_VERSION``                      | ``2.0.0.dev0``                           | version of Airflow                       |
 +------------------------------------------+------------------------------------------+------------------------------------------+
-| ``AIRFLOW_ORG``                          | ``apache``                               | Github organisation from which Airflow   |
-|                                          |                                          | is installed (when installed from repo)  |
-+------------------------------------------+------------------------------------------+------------------------------------------+
 | ``AIRFLOW_REPO``                         | ``apache/airflow``                       | the repository from which PIP            |
 |                                          |                                          | dependencies are pre-installed           |
 +------------------------------------------+------------------------------------------+------------------------------------------+
 | ``AIRFLOW_BRANCH``                       | ``master``                               | the branch from which PIP dependencies   |
-|                                          |                                          | are pre-installed                        |
+|                                          |                                          | are pre-installed initially              |
 +------------------------------------------+------------------------------------------+------------------------------------------+
-| ``AIRFLOW_GIT_REFERENCE``                | ``master``                               | reference (branch or tag) from Github    |
-|                                          |                                          | repository from which Airflow is         |
-|                                          |                                          | installed (when installed from repo)     |
-+------------------------------------------+------------------------------------------+------------------------------------------+
-| ``REQUIREMENTS_GIT_REFERENCE``           | ``master``                               | reference (branch or tag) from Github    |
-|                                          |                                          | repository from which requirements are   |
-|                                          |                                          | downloaded for constraints (when         |
-|                                          |                                          | installed from repo).                    |
+| ``AIRFLOW_CONSTRAINTS_REFERENCE``        | ``constraints-master``                   | reference (branch or tag) from Github    |
+|                                          |                                          | repository from which constraints are    |
+|                                          |                                          | used                                     |
 +------------------------------------------+------------------------------------------+------------------------------------------+
 | ``AIRFLOW_EXTRAS``                       | (see Dockerfile)                         | Default extras with which airflow is     |
 |                                          |                                          | installed                                |
