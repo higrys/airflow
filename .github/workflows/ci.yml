@@ -453,7 +453,6 @@ jobs:
       - constraints
     env:
       CI_JOB_TYPE: "Requirements"
-      CONSTRAINTS_BRANCH: ${{ 'constraints-master' if github.event_name == 'schedule'  }}
     if: github.event_name == 'schedule' || github.ref == 'refs/heads/v1-10-test'
     steps:
       - name: "Set constraints branch name"
