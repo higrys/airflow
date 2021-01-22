@@ -51,8 +51,14 @@ function run_prepare_documentation() {
         if [[ ${res} == "64" ]]; then
             skipped_documentation+=("${provider_package}")
             continue
+            echo "${COLOR_YELLOW}"
+            echo "Skipping provider ${provider_package}"
+            echo "${COLOR_RESET}"
         fi
         if [[ ${res} != "0" ]]; then
+            echo "${COLOR_RED}"
+            echo "Error when generating provider ${provider_package}"
+            echo "${COLOR_RESET}"
             error_documentation+=("${provider_package}")
             continue
         fi
