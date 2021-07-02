@@ -28,7 +28,7 @@ class ZendeskHook(BaseHook):
     """
     Interact with Zendesk. This hook uses the Zendesk conn_id.
 
-    :param zendesk_conn_id: The Airflow connection used for Zendesk credentials.
+    :param zendesk_conn_id: The Airflow connection used for Zendesk's credentials.
     :type zendesk_conn_id: str
     """
 
