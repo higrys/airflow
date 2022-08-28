@@ -17,7 +17,7 @@
 #
 ---
 name: Tests
-on:  # yamllint disable-line rule:truthy
+on:  # yamllint disable-line rule:truthy TEST 
   schedule:
     - cron: '28 0 * * *'
   push:
