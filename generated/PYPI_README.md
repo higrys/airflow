@@ -140,7 +140,7 @@ For information on installing provider distributions, check
 ## Official source code
 
 Apache Airflow is an [Apache Software Foundation](https://www.apache.org) (ASF) project,
-and our official source code releases:
+and its official source code releases:
 
 - Follow the [ASF Release Policy](https://www.apache.org/legal/release-policy.html)
 - Can be downloaded from [the ASF Distribution Directory](https://downloads.apache.org/airflow)
